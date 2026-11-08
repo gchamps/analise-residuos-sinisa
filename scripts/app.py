@@ -434,7 +434,13 @@ with aba_panorama:
             st.caption("Cada barra soma 100% dos municípios. Cinza: registraram 0%. Azul: registraram 100%. Areia: ficaram entre 1% e 99%. "
                        "O valor 0 pode indicar ausência do serviço ou informação não preenchida.")
         with st.expander("Ver tabela estatística completa"):
-            linhas = [{"Indicador": CURTOS[c], **resumo_uf[c]} for c in INDICADORES]
+            unidade_de = dict(zip(df_catalogo["codigo"], df_catalogo["unidade"]))
+            linhas = []
+            for c in INDICADORES:
+                r = dict(resumo_uf[c])
+                if unidade_de.get(c) != "Percentual":
+                    r["% = 100"] = None  # "% = 100" só faz sentido para indicadores em percentual
+                linhas.append({"Indicador": CURTOS[c], **r})
             st.dataframe(pd.DataFrame(linhas).round(2), hide_index=True,
                          column_config={col: st.column_config.NumberColumn(col, format="localized")
                                         for col in resumo_uf[INDICADORES[0]]})
