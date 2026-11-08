@@ -7,7 +7,8 @@ Projeto de extensão do 4º semestre (FATEC São Bernardo do Campo). Organiza, a
 ## O que o projeto entrega
 | Entrega | Onde |
 |---|---|
-| Script de banco de dados (SQL) documentado | `sql/01_schema.sql` (esquema) e `sql/02_consultas.sql` (consultas) |
+| Banco de dados PostgreSQL: extração, limpeza, carga, modelo, views e validação | `docs/banco_de_dados.md` (documentação), `sql/postgres/` (scripts), `scripts/etl_postgres.py` (ETL), `dados_tratados/postgres/residuos_sinisa.sql` (dump) |
+| Script de banco de dados (SQL) documentado, versão SQLite usada pelo dashboard | `sql/01_schema.sql` (esquema) e `sql/02_consultas.sql` (consultas) |
 | Código-fonte da aplicação web (Streamlit) | `scripts/app.py` |
 | ETL (Excel → SQLite) | `scripts/etl_sqlite.py` |
 | Planilha estatística com análises | `resultados/Analise_Estatistica_Residuos.xlsx` |
@@ -23,13 +24,22 @@ streamlit run scripts/app.py        # abre o dashboard
 ```
 Para regenerar a planilha: `python scripts/gerar_planilha.py` (usa `scripts/analise_estatistica.py`).
 
+Banco PostgreSQL (opcional, para a parte de administração de banco de dados): veja `docs/banco_de_dados.md`. Resumo:
+```powershell
+.\scripts\postgres_portatil.ps1 instalar
+.\scripts\postgres_portatil.ps1 iniciar
+pip install -r requirements-postgres.txt
+python scripts\etl_postgres.py
+```
+
 ## Estrutura
 ```text
 ├── dados_originais/    planilhas brutas do SINISA (o ETL usa só SINISA_RESIDUOS_Indicadores_2024.xlsx)
 ├── dados_tratados/     banco SQLite e CSVs gerados pelo ETL; br_ufs.geojson (malha das UFs, IBGE) usada no mapa
 ├── resultados/         planilha estatística (Excel)
 ├── scripts/            etl_sqlite.py, analise_estatistica.py, gerar_planilha.py, app.py
-├── sql/                01_schema.sql, 02_consultas.sql
+├── sql/                01_schema.sql, 02_consultas.sql (SQLite); postgres/ (esquema, transformação, views, validação)
+├── docs/               banco_de_dados.md (pipeline, modelo e validação do PostgreSQL)
 ├── analise-residuos-sinisa.docx   relatório acadêmico
 └── requirements.txt
 ```
