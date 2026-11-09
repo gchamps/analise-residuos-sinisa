@@ -14,9 +14,14 @@ Saídas (pasta dados_tratados/):
     resultados_indicadores_mpv.csv   tabela fato (resultados por município)
 
 Uso, a partir da raiz do projeto:
-    python scripts/etl_sqlite.py
+    python scripts/etl_sqlite.py             # pula se planilhas, esquema e ETL não mudaram
+    python scripts/etl_sqlite.py --forcar    # refaz mesmo assim
+
+Segurança da carga: o banco é montado em arquivo temporário e só substitui o atual depois da validação.
 """
 
+import argparse
+import hashlib
 import os
 import sqlite3
 import sys
@@ -57,7 +62,11 @@ TOLERANCIA_IRS3002_PP = 0.05            # diferença máxima aceita entre o IRS3
 
 # Regras de sinalização de qualidade (os valores NÃO são apagados, só marcados)
 LIMITE_PERCENTUAL = 100.0          # indicador percentual não deveria passar de 100
-LIMITE_MASSA_PER_CAPITA = 3.0      # kg/hab.dia; critério do grupo, ajuste se necessário
+# Limite da massa per capita (kg/hab.dia). Justificativa com os dados de 2024: mediana 0,70; percentil 95 = 2,10;
+# percentil 99 = 3,13; cerca de Tukey para valores extremos (Q3 + 3 x IQR) = 2,98. Um limite de 3 sinaliza 59 dos
+# 4.854 municípios (1,2%), mantém os valores no banco e deixa o app excluí-los por escolha do usuário.
+# Dois limites alternativos: 2,5 sinalizaria 126 municípios; 4,0 sinalizaria 12.
+LIMITE_MASSA_PER_CAPITA = 3.0
 FLAG_PERCENTUAL = "PERCENTUAL_ACIMA_100"
 FLAG_MASSA = "MASSA_PER_CAPITA_ALTA"
 
@@ -390,7 +399,45 @@ def validar_carga(conn):
 # -----------------------------------------------------------------------------
 # Execução
 # -----------------------------------------------------------------------------
-def executar_etl():
+def calcular_hash_entradas():
+    """Impressão digital do que determina o banco: planilhas de entrada, esquema e este script.
+
+    Fins de linha de arquivos de texto são normalizados, para o hash não mudar entre Windows e Linux.
+    """
+    resumo = hashlib.sha256()
+    for caminho in (CAMINHO_EXCEL, CAMINHO_EXCEL_MANEJO, CAMINHO_SCHEMA, os.path.abspath(__file__)):
+        if not os.path.exists(caminho):
+            sys.exit(f"Arquivo não encontrado: {caminho}")
+        with open(caminho, "rb") as arquivo:
+            conteudo = arquivo.read()
+        if caminho.endswith((".sql", ".py")):
+            conteudo = conteudo.replace(b"\r\n", b"\n")
+        resumo.update(os.path.basename(caminho).encode("utf-8"))
+        resumo.update(conteudo)
+    return resumo.hexdigest()
+
+
+def banco_esta_atualizado(hash_atual):
+    """True se o banco e os CSVs existem e foram gerados com as mesmas entradas."""
+    if not all(os.path.exists(p) for p in (CAMINHO_BANCO, CAMINHO_CSV_MUNICIPIOS, CAMINHO_CSV_RESULTADOS)):
+        return False
+    try:
+        conn = sqlite3.connect(f"file:{CAMINHO_BANCO}?mode=ro", uri=True)
+        try:
+            linha = conn.execute("SELECT valor FROM etl_meta WHERE chave = 'hash_entradas'").fetchone()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return False
+    return linha is not None and linha[0] == hash_atual
+
+
+def executar_etl(forcar=False):
+    hash_atual = calcular_hash_entradas()
+    if not forcar and banco_esta_atualizado(hash_atual):
+        print("Banco já está atualizado em relação às planilhas, ao esquema e ao ETL. Use --forcar para refazer.")
+        return
+
     print(f"Lendo a planilha do SINISA (ano de referência {ANO_REFERENCIA})...")
     dados = ler_planilha(CAMINHO_EXCEL)
 
@@ -400,27 +447,39 @@ def executar_etl():
     destinacao = preparar_destinacao(ler_rotas_destino(CAMINHO_EXCEL_MANEJO),
                                      ler_massas_manejo(CAMINHO_EXCEL_MANEJO), municipios["cod_ibge"])
 
+    # O banco é montado em arquivo temporário e só substitui o atual se a validação passar:
+    # um ETL que falha não deixa o banco pela metade, e o arquivo gerado é sempre o mesmo para as mesmas entradas.
     os.makedirs(os.path.dirname(CAMINHO_BANCO), exist_ok=True)
-    conn = sqlite3.connect(CAMINHO_BANCO)
+    caminho_temporario = CAMINHO_BANCO + ".tmp"
+    if os.path.exists(caminho_temporario):
+        os.remove(caminho_temporario)
+    conn = sqlite3.connect(caminho_temporario)
     try:
         conn.execute("PRAGMA foreign_keys = ON;")
         criar_esquema(conn)
         carregar(conn, municipios, resultados, destinacao)
+        conn.execute("INSERT INTO etl_meta (chave, valor) VALUES ('hash_entradas', ?)", (hash_atual,))
+        conn.commit()
         print("Carga concluída. Validando...")
         problemas = validar_carga(conn)
-        n_mun, n_res = exportar_csvs(conn)
-        print(f"CSVs gerados: municipios.csv ({n_mun} linhas) e resultados_indicadores_mpv.csv ({n_res} linhas).")
+        if not problemas:
+            n_mun, n_res = exportar_csvs(conn)
+            print(f"CSVs gerados: municipios.csv ({n_mun} linhas) e resultados_indicadores_mpv.csv ({n_res} linhas).")
     finally:
         conn.close()
 
     if problemas:
-        print("\nPROBLEMAS ENCONTRADOS:")
+        os.remove(caminho_temporario)
+        print("\nPROBLEMAS ENCONTRADOS (o banco anterior foi mantido):")
         for problema in problemas:
             print(f"  - {problema}")
         sys.exit(1)
 
+    os.replace(caminho_temporario, CAMINHO_BANCO)
     print("ETL finalizado sem problemas.")
 
 
 if __name__ == "__main__":
-    executar_etl()
+    analisador = argparse.ArgumentParser(description="ETL do SINISA (planilhas -> banco SQLite e CSVs).")
+    analisador.add_argument("--forcar", action="store_true", help="refaz o banco mesmo que as entradas não tenham mudado")
+    executar_etl(forcar=analisador.parse_args().forcar)

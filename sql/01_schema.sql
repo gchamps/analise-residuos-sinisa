@@ -22,6 +22,7 @@
 PRAGMA foreign_keys = ON;
 
 -- Remoção na ordem inversa das dependências (fato primeiro, dimensões depois)
+DROP TABLE IF EXISTS etl_meta;
 DROP TABLE IF EXISTS destinacao_municipio;
 DROP TABLE IF EXISTS resultado_indicador;
 DROP TABLE IF EXISTS indicador;
@@ -104,6 +105,16 @@ CREATE TABLE destinacao_municipio (
     massa_coletada              REAL,                     -- GTR1028 (NULL se não informada)
     massa_recuperada            REAL,                     -- GTR1029 (NULL se não informada)
     FOREIGN KEY (cod_ibge) REFERENCES municipio (cod_ibge)
+);
+
+
+-- -----------------------------------------------------------------------------
+-- etl_meta: metadados da carga. 'hash_entradas' é a impressão digital das planilhas,
+-- do esquema e do ETL; o ETL a usa para pular a execução quando nada mudou.
+-- -----------------------------------------------------------------------------
+CREATE TABLE etl_meta (
+    chave  TEXT PRIMARY KEY,
+    valor  TEXT NOT NULL
 );
 
 
