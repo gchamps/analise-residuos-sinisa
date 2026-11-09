@@ -6,8 +6,8 @@ Registro do plano de trabalho, do modelo de orquestração e do andamento. Atual
 
 | # | Etapa | Entregas | Status |
 |---|---|---|---|
-| 0 | Auditoria de base | `tests/` de caracterização (números hoje publicados), `requirements-dev.txt` | feito |
-| 1 | Fundação | versões fixadas, CI (GitHub Actions), índice redundante no SQLite, cache do app sensível à data do banco | pendente |
+| 0 | Auditoria de base | `tests/` de caracterização (números hoje publicados) e do ETL, `requirements-dev.txt`; auditada, achados médios corrigidos | feito |
+| 1 | Fundação | limites de versão + lock, CI (GitHub Actions), índice redundante no SQLite, cache do app sensível à data do banco | feito (CI ainda não rodou no GitHub) |
 | 2 | Refatoração | módulo comum de cálculos, `app.py` dividido, mesma regra de "excluir suspeitos" no app e na planilha | pendente |
 | 3 | Zeros do IRS3002 | cruzar com a planilha de Destinação Final; separar "zero confirmado" de "zero não verificado" | pendente |
 | 4 | ETL e banco | execução incremental por hash, carga do staging mais limpa, destino do `.db` versionado, justificar limite de 3 kg/hab.dia | pendente |
@@ -20,11 +20,11 @@ Regra de ouro: os testes da etapa 0 não podem quebrar sem uma decisão explíci
 
 | Papel | Quem | Modelo | Esforço | Por quê |
 |---|---|---|---|---|
-| Orquestrador e implementador | sessão principal | Sonnet 5.5 | padrão | tem o contexto inteiro e conversa com o Walter; um orquestrador separado só repassaria informação |
-| Leitor / explorador | subagente `Explore` ou `general-purpose` | Haiku 5.5 | baixo | leitura volumosa que devolve só um resumo; erro é barato porque o orquestrador confere |
-| Pesquisa de dados (planilhas SINISA) | subagente `general-purpose` | Sonnet 5.5 | médio | exige raciocínio sobre estrutura, mas não decisão de projeto |
-| Auditor de etapa | subagente independente, somente leitura | Opus 5.5 | alto | contexto novo, sem viés de quem implementou; custa mais, mas roda uma vez por etapa |
-| Auditor final (etapa 6) | subagente independente | Opus 5.5 | máximo | última barreira antes de publicar números |
+| Orquestrador e implementador | sessão principal | Sonnet (a da sessão) | padrão | tem o contexto inteiro e conversa com o Walter; um orquestrador separado só repassaria informação |
+| Leitor / explorador | subagente `Explore` ou `general-purpose` | Haiku | baixo | leitura volumosa que devolve só um resumo; erro é barato porque o orquestrador confere |
+| Pesquisa de dados (planilhas SINISA) | subagente `general-purpose` | Sonnet | médio | exige raciocínio sobre estrutura, mas não decisão de projeto |
+| Auditor de etapa | subagente independente, somente leitura | Opus | alto | contexto novo, sem viés de quem implementou; custa mais, mas roda uma vez por etapa |
+| Auditor final (etapa 6) | subagente independente | Opus | máximo | última barreira antes de publicar números |
 
 Regras:
 1. Subagentes de implementação só rodam em paralelo se não tocam os mesmos arquivos. Caso contrário, a etapa é sequencial.

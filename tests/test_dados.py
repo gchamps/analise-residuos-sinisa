@@ -24,9 +24,10 @@ def test_cada_indicador_cobre_todos_os_respondentes(conn):
 
 
 def test_sinalizacoes_de_qualidade(conn):
-    sinais = dict(conn.execute(
-        "SELECT flag_qualidade, COUNT(*) FROM resultado_indicador WHERE flag_qualidade IS NOT NULL GROUP BY 1"))
-    assert sinais == {"MASSA_PER_CAPITA_ALTA": 59, "PERCENTUAL_ACIMA_100": 4}
+    sinais = {(i, f): n for i, f, n in conn.execute(
+        "SELECT codigo_indicador, flag_qualidade, COUNT(*) FROM resultado_indicador "
+        "WHERE flag_qualidade IS NOT NULL GROUP BY 1, 2")}
+    assert sinais == {("IRS1004", "MASSA_PER_CAPITA_ALTA"): 59, ("IRS3001", "PERCENTUAL_ACIMA_100"): 4}
 
 
 def test_sem_resultados_de_nao_respondentes(conn):
@@ -42,10 +43,16 @@ def test_csvs_identicos_ao_banco(conn):
     from conftest import RAIZ
     import os
     mun = pd.read_csv(os.path.join(RAIZ, "dados_tratados", "municipios.csv"), dtype={"cod_ibge": str}, encoding="utf-8-sig")
-    assert len(mun) == 5570
-    res = pd.read_csv(os.path.join(RAIZ, "dados_tratados", "resultados_indicadores_mpv.csv"), encoding="utf-8-sig")
-    assert len(res) == 29124
-    assert res["valor"].sum() == pytest.approx(escalar(conn, "SELECT SUM(valor) FROM resultado_indicador"), rel=1e-9)
+    mun_db = pd.read_sql_query("SELECT * FROM municipio ORDER BY cod_ibge", conn)
+    pd.testing.assert_frame_equal(mun.reset_index(drop=True), mun_db, check_dtype=False)
+
+    res = pd.read_csv(os.path.join(RAIZ, "dados_tratados", "resultados_indicadores_mpv.csv"),
+                      dtype={"cod_ibge": str}, encoding="utf-8-sig")
+    res_db = pd.read_sql_query(
+        "SELECT cod_ibge, codigo_indicador, valor, ano_referencia, flag_qualidade FROM resultado_indicador "
+        "ORDER BY codigo_indicador, cod_ibge", conn)
+    assert res["cod_ibge"].str.fullmatch(r"\d{7}").all()
+    pd.testing.assert_frame_equal(res.reset_index(drop=True), res_db, check_dtype=False)
 
 
 def test_medias_nacionais_publicadas(tabela):

@@ -1,4 +1,4 @@
-"""Configuração comum dos testes: deixa scripts/ importável e abre o banco versionado."""
+"""Configuração comum dos testes: deixa scripts/ importável e abre o banco versionado (somente leitura)."""
 
 import os
 import sqlite3
@@ -14,7 +14,9 @@ CAMINHO_BANCO = os.path.join(RAIZ, "dados_tratados", "projeto_residuos.db")
 
 @pytest.fixture(scope="session")
 def conn():
-    c = sqlite3.connect(CAMINHO_BANCO)
+    if not os.path.exists(CAMINHO_BANCO):
+        pytest.fail(f"Banco ausente: {CAMINHO_BANCO}. Rode scripts/etl_sqlite.py.")
+    c = sqlite3.connect(f"file:{CAMINHO_BANCO}?mode=ro", uri=True)
     yield c
     c.close()
 
