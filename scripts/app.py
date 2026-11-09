@@ -8,14 +8,19 @@ Execução, a partir da raiz do projeto:
     streamlit run scripts/app.py
 """
 
-import json
 import os
 import sqlite3
+import sys
 
 import altair as alt
 import pandas as pd
 import streamlit as st
 from scipy.stats import spearmanr
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # o Streamlit executa o script de qualquer pasta
+from calculos import (CONSULTA_RESULTADOS, INDICADORES, formatar, montar_tabela, ranking_uf, resumo_indicador,  # noqa: E402
+                      resumo_por_faixa)
+from mapa import preparar_mapa  # noqa: E402
 
 st.set_page_config(page_title="MPV - Resíduos Sólidos", layout="wide")
 alt.data_transformers.disable_max_rows()
@@ -23,14 +28,6 @@ alt.data_transformers.disable_max_rows()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CAMINHO_BANCO = os.path.normpath(os.path.join(BASE_DIR, "..", "dados_tratados", "projeto_residuos.db"))
 CAMINHO_MAPA = os.path.normpath(os.path.join(BASE_DIR, "..", "dados_tratados", "br_ufs.geojson"))  # malha das UFs, IBGE
-# Código IBGE da UF (2 primeiros dígitos do código do município) -> sigla
-UF_POR_CODIGO = {"11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP", "17": "TO", "21": "MA", "22": "PI",
-                 "23": "CE", "24": "RN", "25": "PB", "26": "PE", "27": "AL", "28": "SE", "29": "BA", "31": "MG", "32": "ES",
-                 "33": "RJ", "35": "SP", "41": "PR", "42": "SC", "43": "RS", "50": "MS", "51": "MT", "52": "GO", "53": "DF"}
-FAIXAS_POP = [0, 10_000, 50_000, 200_000, 1_000_000, float("inf")]
-ROTULOS_FAIXA = ["até 10 mil", "10 a 50 mil", "50 a 200 mil", "200 mil a 1 mi", "mais de 1 mi"]
-
-INDICADORES = ["IRS0001", "IRS0005", "IRS1004", "IRS3001", "IRS3002", "IRS3010"]
 # (código, rótulo curto, sufixo da unidade)
 KPIS = [
     ("IRS3002", "Disposição inadequada", "%"),
@@ -53,78 +50,12 @@ def carregar_dados(caminho, modificado_em):
     """`modificado_em` entra na chave do cache: se o ETL regerar o banco, o app recarrega os dados."""
     conn = sqlite3.connect(caminho)
     try:
-        resultados = pd.read_sql_query(
-            """
-            SELECT m.cod_ibge, m.nome_municipio, m.uf, m.regiao, m.populacao_total,
-                   r.codigo_indicador, r.valor, r.flag_qualidade
-            FROM resultado_indicador r
-            JOIN municipio m ON m.cod_ibge = r.cod_ibge
-            """,
-            conn,
-        )
+        resultados = pd.read_sql_query(CONSULTA_RESULTADOS, conn)
         municipios = pd.read_sql_query("SELECT uf, respondeu FROM municipio", conn)
         catalogo = pd.read_sql_query("SELECT codigo, nome, unidade, definicao FROM indicador ORDER BY codigo", conn)
     finally:
         conn.close()
     return resultados, municipios, catalogo
-
-
-def montar_tabela(resultados, excluir_sinalizados):
-    """Uma linha por município e uma coluna por indicador."""
-    base = resultados
-    if excluir_sinalizados:
-        base = base[base["flag_qualidade"].isna()]
-    tabela = base.pivot_table(
-        index=["cod_ibge", "nome_municipio", "uf", "regiao", "populacao_total"],
-        columns="codigo_indicador",
-        values="valor",
-    ).reset_index()
-    tabela.columns.name = None
-    return tabela
-
-
-def resumo_indicador(serie, pesos):
-    """Estatísticas de um indicador (média ponderada usa a população como peso)."""
-    validos = serie.notna()
-    s, p = serie[validos], pesos[validos]
-    if s.empty:
-        return {"N": 0, "Média": None, "Mediana": None, "Desvio-padrão": None, "Mínimo": None,
-                "Máximo": None, "% = 0": None, "% = 100": None, "Média ponderada": None}
-    return {
-        "N": int(s.count()),
-        "Média": s.mean(),
-        "Mediana": s.median(),
-        "Desvio-padrão": s.std(ddof=1),
-        "Mínimo": s.min(),
-        "Máximo": s.max(),
-        "% = 0": (s == 0).mean() * 100,
-        "% = 100": (s == 100).mean() * 100,
-        "Média ponderada": float((s * p).sum() / p.sum()),
-    }
-
-
-def ranking_ufs(tabela, indicador="IRS3002"):
-    """Média simples e ponderada do indicador por UF, com posições (1 = pior)."""
-    base = tabela.dropna(subset=[indicador]).copy()
-    base["valor_x_pop"] = base[indicador] * base["populacao_total"]
-    por_uf = base.groupby("uf").agg(
-        municipios=(indicador, "size"),
-        media_simples=(indicador, "mean"),
-        soma_valor_pop=("valor_x_pop", "sum"),
-        soma_pop=("populacao_total", "sum"),
-    )
-    por_uf["media_ponderada"] = por_uf["soma_valor_pop"] / por_uf["soma_pop"]
-    por_uf["posicao_simples"] = por_uf["media_simples"].rank(method="min", ascending=False).astype(int)
-    por_uf["posicao_ponderada"] = por_uf["media_ponderada"].rank(method="min", ascending=False).astype(int)
-    return por_uf.drop(columns=["soma_valor_pop", "soma_pop"]).reset_index()
-
-
-def formatar(valor, casas=2, sufixo=""):
-    """Número no padrão brasileiro (vírgula decimal, ponto de milhar)."""
-    if valor is None or pd.isna(valor):
-        return "sem dados"
-    texto = f"{valor:,.{casas}f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    return texto + sufixo
 
 
 # -----------------------------------------------------------------------------
@@ -221,15 +152,12 @@ n_resp = int(municipios_escopo["respondeu"].sum())
 n_total = len(municipios_escopo)
 resumo_br = {c: resumo_indicador(tabela_brasil[c], tabela_brasil["populacao_total"]) for c in INDICADORES}
 resumo_uf = {c: resumo_indicador(tabela[c], tabela["populacao_total"]) for c in INDICADORES}
-ranking = ranking_ufs(tabela_brasil)
+ranking = ranking_uf(tabela_brasil)
 
 # Recortes que sustentam a narrativa (sempre sobre o Brasil todo, para comparar)
 por_regiao = tabela_brasil.groupby("regiao").agg(
     municipios=("IRS3002", "size"), disposicao=("IRS3002", "mean"), coleta_seletiva=("IRS0005", "mean")).reset_index()
-tabela_brasil = tabela_brasil.assign(
-    faixa=pd.cut(tabela_brasil["populacao_total"], FAIXAS_POP, labels=ROTULOS_FAIXA, right=True))
-por_faixa = tabela_brasil.groupby("faixa", observed=True).agg(
-    municipios=("IRS3002", "size"), disposicao=("IRS3002", "mean")).reset_index()
+por_faixa = resumo_por_faixa(tabela_brasil)
 zeros_uf = tabela_brasil.dropna(subset=["IRS3002"]).groupby("uf")["IRS3002"].agg(
     n="size", pct_zero=lambda v: (v == 0).mean() * 100)
 suspeitas = zeros_uf[(zeros_uf["n"] >= 10) & (zeros_uf["pct_zero"] > 90)].sort_values("pct_zero", ascending=False)
@@ -282,34 +210,9 @@ aba_panorama, aba_estados, aba_municipios, aba_metodo = st.tabs(["Panorama", "Es
 # Panorama: a história em quatro passos (onde, quanto, quem, por que a média engana)
 # -----------------------------------------------------------------------------
 @st.cache_data
-def carregar_mapa(caminho):
-    """Lê a malha das UFs e inverte a orientação dos contornos (o IBGE usa a convenção oposta à do Vega/d3)."""
-    with open(caminho, encoding="utf-8") as f:
-        geo = json.load(f)
-    for feicao in geo["features"]:
-        g = feicao["geometry"]
-        poligonos = [g["coordinates"]] if g["type"] == "Polygon" else g["coordinates"]
-        for poligono in poligonos:
-            for anel in poligono:
-                anel.reverse()
-    return geo
-
-
-def centro_do_poligono(geometria):
-    """Centro do retângulo que envolve a UF (suficiente para posicionar a sigla)."""
-    pontos = []
-
-    def coletar(item):
-        if isinstance(item[0], (int, float)):
-            pontos.append(item)
-        else:
-            for sub in item:
-                coletar(sub)
-
-    coletar(geometria["coordinates"])
-    lons = [p[0] for p in pontos]
-    lats = [p[1] for p in pontos]
-    return (min(lons) + max(lons)) / 2, (min(lats) + max(lats)) / 2
+def mapa_das_ufs(caminho, valores_uf, uf_selecionada):
+    """Feições (valor e rótulo por UF) e siglas do mapa; só é refeito quando o recorte muda."""
+    return preparar_mapa(caminho, dict(valores_uf), uf_selecionada, formatar)
 
 
 with aba_panorama:
@@ -345,18 +248,9 @@ with aba_panorama:
         ordenado = ranking.sort_values("media_simples", ascending=False)
         piores = ", ".join(ordenado["uf"].head(3))
         st.subheader(f"No mapa: os maiores percentuais de disposição inadequada estão em {piores}")
-        geo = carregar_mapa(CAMINHO_MAPA)
-        valores_uf = ranking.set_index("uf")["media_simples"].to_dict()
-        feicoes, siglas = [], []
-        for f in geo["features"]:
-            uf = UF_POR_CODIGO[f["properties"]["codarea"]]
-            v = valores_uf.get(uf)
-            feicoes.append({"type": "Feature", "geometry": f["geometry"],
-                            "properties": {"uf": uf, "valor": v, "sel": uf == uf_selecionada,
-                                           "rotulo": formatar(v, 1, "%") if v is not None else "sem dados"}})
-            lon, lat = centro_do_poligono(f["geometry"])
-            siglas.append({"uf": uf, "lon": lon, "lat": lat})
-        mapa = alt.Chart(alt.Data(values=feicoes)).mark_geoshape().encode(
+        valores_uf = tuple(sorted(ranking.set_index("uf")["media_simples"].items()))
+        feicoes, siglas = mapa_das_ufs(CAMINHO_MAPA, valores_uf, uf_selecionada)
+        mapa =alt.Chart(alt.Data(values=feicoes)).mark_geoshape().encode(
             color=alt.Color("properties.valor:Q", scale=ESCALA_PIOR,
                             legend=alt.Legend(title="% disposição inadequada", orient="right", gradientLength=180)),
             stroke=alt.condition("datum.properties.sel", alt.value(COR_TEXTO), alt.value("#FFFFFF")),

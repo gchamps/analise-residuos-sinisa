@@ -24,32 +24,24 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from calculos import (CONSULTA_RESULTADOS, INDICADORES, media_ponderada, montar_tabela, ranking_uf,  # noqa: F401
+                      resumo_regioes)
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CAMINHO_BANCO = os.path.join(BASE_DIR, "dados_tratados", "projeto_residuos.db")
 
-INDICADORES = ["IRS0001", "IRS0005", "IRS1004", "IRS3001", "IRS3002", "IRS3010"]
 UF_RECORTE = "SP"
 
 
 # -----------------------------------------------------------------------------
 # Carga dos dados
 # -----------------------------------------------------------------------------
-def carregar_dados(conn):
-    """Devolve uma linha por município respondente e uma coluna por indicador."""
-    consulta = """
-        SELECT m.cod_ibge, m.nome_municipio, m.uf, m.regiao, m.populacao_total,
-               r.codigo_indicador, r.valor
-        FROM resultado_indicador r
-        JOIN municipio m ON m.cod_ibge = r.cod_ibge
+def carregar_dados(conn, excluir_sinalizados=False):
+    """Devolve uma linha por município respondente e uma coluna por indicador.
+
+    Com `excluir_sinalizados=True` os valores marcados no ETL ficam de fora (mesma regra do app).
     """
-    longo = pd.read_sql_query(consulta, conn)
-    largo = longo.pivot_table(
-        index=["cod_ibge", "nome_municipio", "uf", "regiao", "populacao_total"],
-        columns="codigo_indicador",
-        values="valor",
-    ).reset_index()
-    largo.columns.name = None
-    return largo.sort_values("cod_ibge").reset_index(drop=True)
+    return montar_tabela(pd.read_sql_query(CONSULTA_RESULTADOS, conn), excluir_sinalizados)
 
 
 def carregar_catalogo(conn):
@@ -68,10 +60,6 @@ def carregar_totais_por_uf(conn):
 # -----------------------------------------------------------------------------
 # Estatística descritiva
 # -----------------------------------------------------------------------------
-def media_ponderada(valores, pesos):
-    return float((valores * pesos).sum() / pesos.sum())
-
-
 def estatistica_descritiva(df):
     linhas = []
     for codigo in INDICADORES:
@@ -96,34 +84,7 @@ def estatistica_descritiva(df):
 # -----------------------------------------------------------------------------
 # Rankings por UF e por região (IRS3002 - disposição final inadequada)
 # -----------------------------------------------------------------------------
-def ranking_uf(df, indicador="IRS3002"):
-    def resumo(grupo):
-        return pd.Series({
-            "n_municipios": len(grupo),
-            "media_simples": grupo[indicador].mean(),
-            "media_ponderada": media_ponderada(grupo[indicador], grupo["populacao_total"]),
-        })
-
-    ranking = df.groupby("uf").apply(resumo, include_groups=False).reset_index()
-    ranking["n_municipios"] = ranking["n_municipios"].astype(int)
-    ranking["posicao_simples"] = ranking["media_simples"].rank(method="min", ascending=False).astype(int)
-    ranking["posicao_ponderada"] = ranking["media_ponderada"].rank(method="min", ascending=False).astype(int)
-    return ranking.sort_values(["posicao_simples", "uf"]).reset_index(drop=True)
-
-
-def resumo_regioes(df, indicador="IRS3002"):
-    def resumo(grupo):
-        return pd.Series({
-            "n_municipios": len(grupo),
-            "media_simples": grupo[indicador].mean(),
-            "media_ponderada": media_ponderada(grupo[indicador], grupo["populacao_total"]),
-            "prob_cem": (grupo[indicador] == 100).mean(),
-            "prob_zero": (grupo[indicador] == 0).mean(),
-        })
-
-    regioes = df.groupby("regiao").apply(resumo, include_groups=False).reset_index().sort_values("regiao")
-    regioes["n_municipios"] = regioes["n_municipios"].astype(int)
-    return regioes
+# ranking_uf e resumo_regioes vêm de calculos.py (importados no topo): mesma regra do dashboard.
 
 
 # -----------------------------------------------------------------------------
