@@ -33,8 +33,8 @@ CAMINHO_BANCO = os.path.join(BASE_DIR, "dados_tratados", "projeto_residuos.db")
 CAMINHO_CSV_MUNICIPIOS = os.path.join(BASE_DIR, "dados_tratados", "municipios.csv")
 CAMINHO_CSV_RESULTADOS = os.path.join(BASE_DIR, "dados_tratados", "resultados_indicadores_mpv.csv")
 
-# O arquivo se chama "2025" porque é a edição SINISA 2025, cujo ano de
-# referência dos dados é 2024 (Ministério das Cidades, relatório SINISA 2025).
+# O nome do arquivo e o título da planilha trazem "2024", que é o ano de
+# referência dos dados. A edição é a SINISA 2025 (planilha gerada em 18/12/2025).
 ANO_REFERENCIA = 2024
 
 # Posições (base 0) das linhas do cabeçalho na planilha original:
