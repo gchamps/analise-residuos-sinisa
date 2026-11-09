@@ -1,0 +1,2 @@
+# Mantém as quebras de linha dos scripts SQL e do dump (restauração do PostgreSQL)
+*.sql text eol=lf
