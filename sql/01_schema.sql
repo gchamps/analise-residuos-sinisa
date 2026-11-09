@@ -82,22 +82,25 @@ CREATE TABLE resultado_indicador (
 
 
 -- -----------------------------------------------------------------------------
--- destinacao_municipio: para onde cada município de ORIGEM declarou enviar seus
--- resíduos (SINISA, planilha de Destinação Final, aba de fluxos; GTR3222) e as massas
--- coletada e recuperada (planilha de Manejo; GTR1028 e GTR1029). Uma linha por município
--- da dimensão, com zeros quando não há fluxo declarado. Massas na unidade do SINISA
--- (massa anual); enviada e coletada estão na mesma unidade.
+-- destinacao_municipio: massa coletada nas rotas declaradas pelo município (SINISA,
+-- planilha de Manejo, aba de rotas; GTR1008), somada por classe do tipo de unidade de
+-- destino (GTR1011), mais a massa coletada e a recuperada do município (GTR1028 e
+-- GTR1029). Uma linha por município da dimensão, com zeros quando não há rota declarada.
+-- Massas em toneladas por ano.
 --
--- Uso: interpretar IRS3002 = 0. O numerador do IRS3002 vem destes mesmos fluxos
--- (massa enviada a lixão, vazadouro ou aterro controlado), então esta tabela explica o
--- indicador; ela não é uma verificação independente da declaração do município.
--- Inadequada = lixão, vazadouro ou aterro controlado (definição do IRS3002).
+-- Classes: inadequada = lixão, vazadouro ou aterro controlado; aterro_adequado = aterro
+-- sanitário ou de inertes; intermediaria = transbordo, triagem, compostagem,
+-- coprocessamento, áreas verdes (o destino final não é informado na rota).
+--
+-- O IRS3002 é, exatamente, massa_rota_inadequada / (massa_coletada - massa_recuperada) x 100.
+-- O ETL confere isso para todos os municípios. Logo, esta tabela explica o indicador a partir
+-- da mesma declaração: não é uma verificação independente.
 -- -----------------------------------------------------------------------------
 CREATE TABLE destinacao_municipio (
     cod_ibge                    TEXT PRIMARY KEY,
-    massa_enviada_inadequada    REAL NOT NULL CHECK (massa_enviada_inadequada >= 0),
-    massa_enviada_sanitario     REAL NOT NULL CHECK (massa_enviada_sanitario >= 0),
-    massa_enviada_inertes       REAL NOT NULL CHECK (massa_enviada_inertes >= 0),
+    massa_rota_inadequada       REAL NOT NULL CHECK (massa_rota_inadequada >= 0),
+    massa_rota_aterro_adequado  REAL NOT NULL CHECK (massa_rota_aterro_adequado >= 0),
+    massa_rota_intermediaria    REAL NOT NULL CHECK (massa_rota_intermediaria >= 0),
     massa_coletada              REAL,                     -- GTR1028 (NULL se não informada)
     massa_recuperada            REAL,                     -- GTR1029 (NULL se não informada)
     FOREIGN KEY (cod_ibge) REFERENCES municipio (cod_ibge)

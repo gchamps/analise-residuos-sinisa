@@ -173,12 +173,6 @@ pct_confirmado_suspeitas = None
 zeros_das_suspeitas = zeros_classificados[zeros_classificados["uf"].isin(suspeitas.index)]
 if len(zeros_das_suspeitas):
     pct_confirmado_suspeitas = float((zeros_das_suspeitas["evidencia_zero"] == EVIDENCIA_CONFIRMADO).mean() * 100)
-# UFs em que uma parte relevante dos zeros não tem destino adequado declarado: aqui o valor baixo pode subestimar o problema
-nao_confirmados_uf = zeros_classificados.groupby("uf")["evidencia_zero"].agg(
-    n="size", pct_nao_confirmado=lambda s: (s != EVIDENCIA_CONFIRMADO).mean() * 100)
-atencao = nao_confirmados_uf[(nao_confirmados_uf["n"] >= 10) & (nao_confirmados_uf["pct_nao_confirmado"] >= 30)]
-atencao = atencao.sort_values("pct_nao_confirmado", ascending=False)
-atencao_txt = ", ".join(atencao.index) if len(atencao) else ""
 pior_regiao = por_regiao.sort_values("disposicao").iloc[-1]
 melhor_regiao = por_regiao.sort_values("disposicao").iloc[0]
 regiao_da_uf = None
@@ -278,12 +272,9 @@ with aba_panorama:
         st.altair_chart(estilizar((mapa + rotulos_mapa).project(type="mercator").properties(height=480)))
         st.caption("Média simples do IRS3002 (disposição final inadequada) dos municípios de cada UF. Quanto mais escuro, pior."
                    + (f" Em {suspeitas_txt}, mais de 90% dos municípios registram exatamente 0%, e "
-                      f"{formatar(pct_confirmado_suspeitas, 0, '%')} desses zeros têm destino adequado declarado "
-                      "(os fluxos de resíduos informados vão a aterro sanitário ou de inertes e cobrem a massa coletada)."
-                      if suspeitas_txt and pct_confirmado_suspeitas is not None else "")
-                   + (f" Atenção em {atencao_txt}: mais de 30% dos zeros não têm destino adequado declarado "
-                      "(declaração parcial ou nenhum fluxo informado), e o valor baixo pode subestimar o problema. "
-                      "Detalhes no quadro \"Os zeros são reais?\", em Distribuição." if atencao_txt else ""))
+                      f"{formatar(pct_confirmado_suspeitas, 0, '%')} desses zeros declaram rotas de coleta para aterro sanitário "
+                      "ou de inertes. O valor vem da declaração de cada município; veja o quadro \"O que significa um 0%?\", "
+                      "em Distribuição." if suspeitas_txt and pct_confirmado_suspeitas is not None else ""))
 
     with st.container(border=True):
         st.markdown('<div class="passo">Porte dos municípios</div>', unsafe_allow_html=True)
@@ -349,25 +340,25 @@ with aba_panorama:
                 color=alt.condition(alt.datum.situacao == "100%", alt.value("#FFFFFF"), alt.value(COR_TEXTO)))
             st.altair_chart(estilizar((barras_d + textos_d).properties(height=48 * len(ordem_ind))))
             st.caption("Cada barra soma 100% dos municípios. Cinza: registraram 0%. Azul: registraram 100%. Areia: ficaram entre 1% e 99%. "
-                       "O valor 0 vale quando o município não declarou enviar resíduos a lixão, vazadouro ou aterro controlado; "
-                       "o quadro abaixo mostra para onde esses municípios declararam enviar.")
-            # Classificação dos zeros do IRS3002 pelos fluxos de destinação declarados
+                       "O valor 0 significa que o município não declarou nenhuma rota de coleta para lixão, vazadouro ou aterro controlado.")
+            # Destino declarado dos municípios com 0% (rotas de coleta da planilha de Manejo)
             evid = resumo_evidencia_zeros(tabela, df_destinacao)
             total_z = int(evid.sum())
             if total_z:
-                n_conf, n_parc, n_sem, n_contra = (int(evid[r]) for r in ROTULOS_EVIDENCIA)
+                n_conf, n_inter, n_inc, n_contra = (int(evid[r]) for r in ROTULOS_EVIDENCIA)
                 pct = lambda n: formatar(n / total_z * 100, 0, "%")  # noqa: E731
                 st.markdown(
-                    f"**Os zeros são reais?** Dos {formatar(total_z, 0)} municípios com 0% de disposição inadequada neste recorte, "
-                    f"{formatar(n_conf, 0)} ({pct(n_conf)}) declararam enviar os resíduos a aterro sanitário ou de inertes, "
-                    "em quantidade que cobre ao menos 90% da massa coletada (seja no próprio município ou em outro). "
-                    f"{formatar(n_parc, 0)} ({pct(n_parc)}) declararam destino para só parte da massa, e "
-                    f"{formatar(n_sem, 0)} ({pct(n_sem)}) não declararam nenhum destino: nesses dois grupos o 0% pode "
-                    "estar subestimando o problema. "
-                    + (f"{formatar(n_contra, 0)} declaram envio a lixão ou aterro controlado e ainda assim registram 0% (contradição)."
-                       if n_contra else "Nenhum zero declara envio a lixão, vazadouro ou aterro controlado.")
-                    + " Atenção: o indicador é calculado a partir dessas mesmas declarações. A análise mostra que o zero é "
-                      "coerente com o que cada município informou; ela não comprova que o destino informado é o real.")
+                    "**O que significa um 0%?** O IRS3002 é calculado a partir das rotas de coleta que cada município declara, "
+                    "cada uma com o tipo de unidade de destino: 0% quer dizer que nenhuma rota vai a lixão, vazadouro ou aterro "
+                    f"controlado. Dos {formatar(total_z, 0)} municípios com 0% neste recorte, {formatar(n_conf, 0)} ({pct(n_conf)}) "
+                    "declararam rotas a aterro sanitário ou de inertes que cobrem ao menos 90% da massa coletada líquida; "
+                    f"{formatar(n_inter, 0)} ({pct(n_inter)}) declararam, em boa parte, unidades intermediárias (transbordo, "
+                    "triagem, compostagem), sem informar o destino final dos rejeitos; "
+                    f"{formatar(n_inc, 0)} ({pct(n_inc)}) declararam rotas que cobrem menos de 90% da massa. "
+                    + (f"{formatar(n_contra, 0)} declaram rota a lixão ou aterro controlado e ainda assim registram 0% (contradição). "
+                       if n_contra else "Nenhum zero declara rota a lixão, vazadouro ou aterro controlado. ")
+                    + "Os dados são autodeclarados: o SINISA mostra o que cada município informou, mas não comprova que o "
+                      "destino informado é o real.")
                 por_reg = (tabela_brasil.dropna(subset=["evidencia_zero"]).groupby(["regiao", "evidencia_zero"]).size()
                            .rename("n").reset_index())
                 por_reg["pct"] = por_reg["n"] / por_reg.groupby("regiao")["n"].transform("sum") * 100
@@ -380,7 +371,7 @@ with aba_panorama:
                 barras_e = base_e.mark_bar(size=24).encode(
                     color=alt.Color("evidencia_zero:N", sort=ordem_e,
                                     scale=alt.Scale(domain=ordem_e, range=["#1F5E4B", "#D9A441", "#8A8F98", "#B5451B"]),
-                                    legend=alt.Legend(title="Evidência", orient="top")),
+                                    legend=alt.Legend(title="Destino declarado", orient="top")),
                     order=alt.Order("evidencia_zero:N", sort="ascending"),
                     tooltip=["regiao", "evidencia_zero", alt.Tooltip("n:Q", title="municípios"),
                              alt.Tooltip("pct:Q", title="%", format=".1f")])
@@ -388,9 +379,9 @@ with aba_panorama:
                     text="rotulo:N", order=alt.Order("evidencia_zero:N", sort="ascending"),
                     x=alt.X("pct:Q", stack="zero", bandPosition=0.5))
                 st.altair_chart(estilizar((barras_e + textos_e).properties(height=40 * len(ordem_r))))
-                st.caption("Fonte: fluxos município de origem → unidade de destino da planilha de Destinação Final do SINISA, "
-                           "comparados com a massa coletada líquida (coletada menos recuperada) da planilha de Manejo. "
-                           "Aterro de inertes conta como destino não inadequado, como no IRS3002.")
+                st.caption("Fonte: rotas de coleta e tipo de unidade de destino da planilha de Manejo do SINISA, comparadas com a massa "
+                           "coletada líquida (coletada menos recuperada). Aterro de inertes não é destino inadequado, como no IRS3002. "
+                           "Transbordo, triagem e compostagem são etapas intermediárias: a rota não informa para onde vão os rejeitos.")
         with st.expander("Ver tabela estatística completa"):
             unidade_de = dict(zip(df_catalogo["codigo"], df_catalogo["unidade"]))
             linhas = []
@@ -434,8 +425,7 @@ with aba_estados:
         st.caption("Do pior para o melhor, com a mesma escala de cor do mapa. A UF selecionada tem contorno escuro. "
                    "As duas medidas podem divergir bastante porque o IRS3002 se concentra em 0% e 100%. "
                    "UFs com 0,0% ou 100% pedem cautela: o 0 pode significar ausência de disposição inadequada ou informação não preenchida."
-                   + (f" Em {suspeitas_txt}, mais de 90% dos municípios registram exatamente 0%." if suspeitas_txt else "")
-                   + (f" Atenção em {atencao_txt}: mais de 30% dos zeros não têm destino adequado declarado." if atencao_txt else ""))
+                   + (f" Em {suspeitas_txt}, mais de 90% dos municípios registram exatamente 0%." if suspeitas_txt else ""))
 
     with st.container(border=True):
         st.markdown('<div class="passo">Comparação</div>', unsafe_allow_html=True)

@@ -28,8 +28,6 @@ import pandas as pd
 # -----------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CAMINHO_EXCEL = os.path.join(BASE_DIR, "dados_originais", "SINISA_RESIDUOS_Indicadores_2024.xlsx")
-CAMINHO_EXCEL_DESTINACAO = os.path.join(
-    BASE_DIR, "dados_originais", "SINISA_RESIDUOS_Informacoes_Formulario_Infraestrutura_Destinacao_Final_2024.xlsx")
 CAMINHO_SCHEMA = os.path.join(BASE_DIR, "sql", "01_schema.sql")
 CAMINHO_BANCO = os.path.join(BASE_DIR, "dados_tratados", "projeto_residuos.db")
 CAMINHO_CSV_MUNICIPIOS = os.path.join(BASE_DIR, "dados_tratados", "municipios.csv")
@@ -47,12 +45,15 @@ LINHA_CODIGOS_INDICADORES = 10
 LINHA_CODIGOS_DEMAIS = 12
 PRIMEIRA_LINHA_DADOS = 13
 
-# Planilha de Destinação Final, 2ª aba: fluxos município de origem -> unidade de destino
-ABA_FLUXOS = "Disp_final_entradas_residuos"
-COLUNA_TIPO_UNIDADE = "GTR3201*"      # tipo de unidade de disposição final
-COLUNA_MASSA_ENVIADA = "GTR3222*"     # quantidade enviada pelo município de origem à unidade
+# Planilha de Manejo: 1ª aba = massas por município; 2ª aba = rotas de coleta com o tipo de unidade de destino.
+# O IRS3002 sai das rotas (massa das rotas a lixão ou aterro controlado / massa coletada líquida).
 CAMINHO_EXCEL_MANEJO = os.path.join(
     BASE_DIR, "dados_originais", "SINISA_RESIDUOS_Informacoes_Formulario_Manejo_2024.xlsx")
+ABA_MANEJO = 0
+ABA_ROTAS = "Manejo_Coleta_e_Destinação"
+COLUNA_MASSA_ROTA = "GTR1008"           # massa coletada na rota (t/ano)
+COLUNA_TIPO_DESTINO = "GTR1011*"        # tipo de unidade de destino da rota
+TOLERANCIA_IRS3002_PP = 0.05            # diferença máxima aceita entre o IRS3002 e o recalculado pelas rotas
 
 # Regras de sinalização de qualidade (os valores NÃO são apagados, só marcados)
 LIMITE_PERCENTUAL = 100.0          # indicador percentual não deveria passar de 100
@@ -133,65 +134,76 @@ def ler_planilha(caminho):
     return dados
 
 
-def ler_fluxos_destinacao(caminho):
-    """Lê a 2ª aba da planilha de Destinação Final: um registro por fluxo município de origem -> unidade de destino.
+def ler_rotas_destino(caminho):
+    """Lê a aba de rotas da planilha de Manejo: uma linha por rota de coleta declarada pelo município.
 
-    É a fonte do numerador do IRS3002: quanto cada município enviou, e a que tipo de unidade.
+    Cada rota tem a massa coletada (GTR1008) e o tipo de unidade de destino (GTR1011). A soma das massas das
+    rotas que vão a lixão, vazadouro ou aterro controlado, dividida pela massa coletada líquida, é exatamente
+    o IRS3002 (o ETL confere isso em validar_carga).
     """
     if not os.path.exists(caminho):
         sys.exit(f"Arquivo não encontrado: {caminho}")
-    bruto = pd.read_excel(caminho, sheet_name=ABA_FLUXOS, header=None)
+    bruto = pd.read_excel(caminho, sheet_name=ABA_ROTAS, header=None)
     dados = bruto.iloc[PRIMEIRA_LINHA_DADOS:].copy()
     dados.columns = [str(c).strip() for c in bruto.iloc[LINHA_CODIGOS_DEMAIS].tolist()]
-    return dados.loc[:, ~dados.columns.duplicated()]      # a coluna UF aparece duas vezes (sede e origem)
+    return dados
 
 
 def ler_massas_manejo(caminho):
-    """Massa coletada (GTR1028) e recuperada (GTR1029) por município, da planilha de Manejo."""
+    """Massa coletada (GTR1028) e recuperada (GTR1029) por município, da 1ª aba da planilha de Manejo."""
     if not os.path.exists(caminho):
         sys.exit(f"Arquivo não encontrado: {caminho}")
-    bruto = pd.read_excel(caminho, header=None)
+    bruto = pd.read_excel(caminho, sheet_name=ABA_MANEJO, header=None)
     dados = bruto.iloc[PRIMEIRA_LINHA_DADOS:].copy()
     dados.columns = [str(c).strip() for c in bruto.iloc[LINHA_CODIGOS_DEMAIS].tolist()]
     exigir_colunas(dados, ["Cod_IBGE", "GTR1028", "GTR1029"])
     return dados[["Cod_IBGE", "GTR1028", "GTR1029"]]
 
 
-def classificar_unidade(tipo):
-    """Classe do tipo de unidade de disposição final.
+TERMOS_INTERMEDIARIOS = ("transbordo", "triagem", "compostagem", "coprocessamento", "áreas verdes", "areas verdes")
 
-    'Lixão ou vazadouro' e 'Aterro controlado' são disposição inadequada (mesma regra do IRS3002).
+
+def classificar_destino(tipo):
+    """Classe do tipo de unidade de destino de uma rota.
+
+    * inadequada: lixão, vazadouro ou aterro controlado (a definição do IRS3002);
+    * aterro_adequado: aterro sanitário ou de inertes (destinos finais que o IRS3002 não considera inadequados);
+    * intermediaria: transbordo, triagem, compostagem, coprocessamento, manejo de áreas verdes (o destino final
+      dos rejeitos não é informado na rota).
+
     Interrompe o ETL diante de um tipo desconhecido, em vez de classificá-lo em silêncio.
     """
     texto = str(tipo).strip().lower()
     if "lix" in texto or "controlado" in texto:
         return "inadequada"
-    if "sanit" in texto:
-        return "sanitario"
-    if "inertes" in texto:
-        return "inertes"
-    sys.exit(f"Tipo de unidade de disposição final desconhecido: {tipo!r}. Atualize classificar_unidade().")
+    if "aterro sanit" in texto or "aterro de inertes" in texto:
+        return "aterro_adequado"
+    if any(termo in texto for termo in TERMOS_INTERMEDIARIOS):
+        return "intermediaria"
+    sys.exit(f"Tipo de unidade de destino desconhecido: {tipo!r}. Atualize classificar_destino().")
 
 
-def preparar_destinacao(fluxos, massas, codigos_municipios):
-    """Massa enviada por cada município de ORIGEM a cada classe de unidade, mais a massa coletada e recuperada.
+def preparar_destinacao(rotas, massas, codigos_municipios):
+    """Massa das rotas de cada município por classe de destino, mais a massa coletada e a recuperada.
 
-    Todo município da dimensão aparece (zeros quando não há fluxo declarado). A massa enviada está na
-    mesma unidade da massa coletada (o quociente fluxos/coletada tem mediana 1 nos dados de 2024).
-    Serve para interpretar o IRS3002 = 0: ver calculos.classificar_zeros.
+    Todo município da dimensão aparece (zeros quando não há rota declarada). Massas em toneladas por ano,
+    como no SINISA. Rotas sem tipo de destino ou sem massa (municípios que não responderam) são ignoradas.
     """
-    exigir_colunas(fluxos, ["Cod_ibge_mun_orig", COLUNA_TIPO_UNIDADE, COLUNA_MASSA_ENVIADA])
-    base = fluxos[fluxos[COLUNA_TIPO_UNIDADE].notna()].copy()
-    base["cod_ibge"] = codigo_ibge_como_texto(base["Cod_ibge_mun_orig"])
-    base["massa"] = pd.to_numeric(base[COLUNA_MASSA_ENVIADA], errors="coerce")
+    exigir_colunas(rotas, ["Cod_IBGE", COLUNA_TIPO_DESTINO, COLUNA_MASSA_ROTA])
+    base = rotas[rotas[COLUNA_TIPO_DESTINO].notna()].copy()
+    base["cod_ibge"] = codigo_ibge_como_texto(base["Cod_IBGE"])
+    base["massa"] = pd.to_numeric(base[COLUNA_MASSA_ROTA], errors="coerce")
+    descartadas = int(base[["cod_ibge", "massa"]].isna().any(axis=1).sum())
+    if descartadas:
+        print(f"AVISO: {descartadas} rotas com tipo de destino foram descartadas por falta de código IBGE ou massa numérica.")
     base = base.dropna(subset=["cod_ibge", "massa"])
-    base["classe"] = base[COLUNA_TIPO_UNIDADE].map(classificar_unidade)
+    base["classe"] = base[COLUNA_TIPO_DESTINO].map(classificar_destino)
     soma = base.pivot_table(index="cod_ibge", columns="classe", values="massa", aggfunc="sum")
 
     saida = pd.DataFrame({"cod_ibge": list(codigos_municipios)}).set_index("cod_ibge")
-    for classe in ("inadequada", "sanitario", "inertes"):
+    for classe in ("inadequada", "aterro_adequado", "intermediaria"):
         serie = soma[classe] if classe in soma.columns else pd.Series(dtype="float64")
-        saida[f"massa_enviada_{classe}"] = serie.reindex(saida.index).fillna(0.0)
+        saida[f"massa_rota_{classe}"] = serie.reindex(saida.index).fillna(0.0)
 
     massas = massas.assign(cod_ibge=codigo_ibge_como_texto(massas["Cod_IBGE"]),
                            massa_coletada=pd.to_numeric(massas["GTR1028"], errors="coerce"),
@@ -347,19 +359,26 @@ def validar_carga(conn):
     n_destinacao = escalar("SELECT COUNT(*) FROM destinacao_municipio")
     if n_destinacao != n_municipios:
         problemas.append(f"destinacao_municipio tem {n_destinacao} linhas, mas há {n_municipios} municípios.")
+    # O IRS3002 deve ser reproduzido pelas rotas: massa a lixão/aterro controlado / (coletada - recuperada) x 100
+    n_conferidos, maior_diferenca, divergentes = conn.execute(
+        "SELECT COUNT(*), MAX(ABS(r.valor - 100.0 * d.massa_rota_inadequada / (d.massa_coletada - COALESCE(d.massa_recuperada, 0)))), "
+        "SUM(ABS(r.valor - 100.0 * d.massa_rota_inadequada / (d.massa_coletada - COALESCE(d.massa_recuperada, 0))) > ?) "
+        "FROM resultado_indicador r JOIN destinacao_municipio d USING (cod_ibge) "
+        "WHERE r.codigo_indicador = 'IRS3002' AND d.massa_coletada - COALESCE(d.massa_recuperada, 0) > 0",
+        (TOLERANCIA_IRS3002_PP,)).fetchone()
+    print(f"IRS3002 recalculado pelas rotas de coleta: {n_conferidos} municípios conferidos, "
+          f"maior diferença {maior_diferenca:.4f} p.p.")
+    if divergentes:
+        problemas.append(f"{divergentes} municípios têm IRS3002 diferente do recalculado pelas rotas "
+                         f"(tolerância {TOLERANCIA_IRS3002_PP} p.p.).")
     zeros = conn.execute(
-        "SELECT COUNT(*), "
-        "SUM(d.massa_enviada_sanitario > 0 AND d.massa_enviada_inadequada = 0), "
-        "SUM(d.massa_enviada_sanitario + d.massa_enviada_inertes + d.massa_enviada_inadequada = 0), "
-        "SUM(d.massa_enviada_inadequada > 0) "
+        "SELECT COUNT(*), SUM(d.massa_rota_inadequada > 0) "
         "FROM resultado_indicador r JOIN destinacao_municipio d USING (cod_ibge) "
         "WHERE r.codigo_indicador = 'IRS3002' AND r.valor = 0"
     ).fetchone()
-    print("IRS3002 = 0, fluxos declarados na planilha de Destinação Final:")
-    print(f"  zeros: {zeros[0]} | enviam a aterro sanitário: {zeros[1]} | sem nenhum fluxo declarado: {zeros[2]} | "
-          f"enviam a lixão/aterro controlado (contradição): {zeros[3]}")
-    if zeros[3]:
-        problemas.append(f"{zeros[3]} municípios com IRS3002 = 0 declaram envio a lixão ou aterro controlado.")
+    print(f"IRS3002 = 0: {zeros[0]} municípios; com rota declarada a lixão/aterro controlado: {zeros[1]}")
+    if zeros[1]:
+        problemas.append(f"{zeros[1]} municípios com IRS3002 = 0 declaram rota a lixão ou aterro controlado.")
 
     violacoes_fk = conn.execute("PRAGMA foreign_key_check").fetchall()
     if violacoes_fk:
@@ -377,8 +396,8 @@ def executar_etl():
 
     municipios = preparar_municipios(dados)
     resultados = preparar_resultados(dados)
-    print("Lendo fluxos de destinação e massas coletadas (evidência para o IRS3002 = 0)...")
-    destinacao = preparar_destinacao(ler_fluxos_destinacao(CAMINHO_EXCEL_DESTINACAO),
+    print("Lendo rotas de coleta e destino e massas coletadas (planilha de Manejo)...")
+    destinacao = preparar_destinacao(ler_rotas_destino(CAMINHO_EXCEL_MANEJO),
                                      ler_massas_manejo(CAMINHO_EXCEL_MANEJO), municipios["cod_ibge"])
 
     os.makedirs(os.path.dirname(CAMINHO_BANCO), exist_ok=True)
