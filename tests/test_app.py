@@ -22,6 +22,8 @@ def test_brasil_sem_excecoes():
     texto = " ".join(m.value for m in app.markdown)
     assert "4.854 municípios que responderam" in texto
     assert "33,9%" in texto                      # média nacional de disposição inadequada
+    legendas = " ".join(c.value for c in app.caption)
+    assert "Média ponderada 20,79%" in legendas and "Média ponderada 92,63%" in legendas
 
 
 def test_uf_selecionada_sem_excecoes():
@@ -30,12 +32,19 @@ def test_uf_selecionada_sem_excecoes():
     assert not app.exception
     texto = " ".join(m.value for m in app.markdown)
     assert "Em SP" in texto and "6,7%" in texto and "20ª pior" in texto
+    assert "Ponderando pela população, 7,9%" in texto
+    legendas = " ".join(c.value for c in app.caption)
+    assert "Média ponderada 7,89%" in legendas       # KPI de disposição inadequada em SP
 
 
 def test_filtro_de_suspeitos_sem_excecoes():
     app = novo_app()
     app.sidebar.expander[0].checkbox[0].check().run()
     assert not app.exception
+    legendas = " ".join(c.value for c in app.caption)
+    assert "Média ponderada 20,79%" in legendas       # IRS3002 não tem valores suspeitos: não muda
+    metricas = {m.label: m.value for m in app.metric}
+    assert metricas["Massa per capita"] != "0,87"      # sem os 59 suspeitos a média cai
 
 
 @pytest.mark.parametrize("uf", ["DF", "RR", "AL"])

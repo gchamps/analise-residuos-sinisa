@@ -1,6 +1,7 @@
 """Malha das UFs (IBGE) para o mapa do dashboard. Não depende de Streamlit."""
 
 import json
+from functools import lru_cache
 
 # Código IBGE da UF (2 primeiros dígitos do código do município) -> sigla
 UF_POR_CODIGO = {"11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP", "17": "TO", "21": "MA", "22": "PI",
@@ -8,8 +9,12 @@ UF_POR_CODIGO = {"11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16
                  "33": "RJ", "35": "SP", "41": "PR", "42": "SC", "43": "RS", "50": "MS", "51": "MT", "52": "GO", "53": "DF"}
 
 
+@lru_cache(maxsize=4)
 def carregar_geojson(caminho):
-    """Lê a malha das UFs e inverte a orientação dos contornos (o IBGE usa a convenção oposta à do Vega/d3)."""
+    """Lê a malha das UFs (uma vez por arquivo) e inverte a orientação dos contornos.
+
+    O IBGE usa a convenção oposta à do Vega/d3. O resultado é compartilhado: não altere o dicionário devolvido.
+    """
     with open(caminho, encoding="utf-8") as f:
         geo = json.load(f)
     for feicao in geo["features"]:

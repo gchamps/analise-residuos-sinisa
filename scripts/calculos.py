@@ -67,7 +67,11 @@ def _posicoes(serie):
 
 
 def ranking_uf(tabela, indicador="IRS3002"):
-    """Média simples e ponderada do indicador por UF, com posições (1 = pior)."""
+    """Média simples e ponderada do indicador por UF, com posições (1 = pior).
+
+    Municípios sem valor no indicador (por exemplo, após excluir valores suspeitos) ficam fora de
+    `n_municipios` e das médias. Ordenado por posição simples e, no empate, por UF.
+    """
     base = tabela.dropna(subset=[indicador])
     linhas = []
     for uf, grupo in base.groupby("uf"):

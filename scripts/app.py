@@ -17,7 +17,9 @@ import pandas as pd
 import streamlit as st
 from scipy.stats import spearmanr
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # o Streamlit executa o script de qualquer pasta
+_PASTA_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
+if _PASTA_SCRIPTS not in sys.path:  # o Streamlit já costuma incluir a pasta; garante sem duplicar a cada interação
+    sys.path.append(_PASTA_SCRIPTS)
 from calculos import (CONSULTA_RESULTADOS, INDICADORES, formatar, montar_tabela, ranking_uf, resumo_indicador,  # noqa: E402
                       resumo_por_faixa)
 from mapa import preparar_mapa  # noqa: E402
@@ -250,7 +252,7 @@ with aba_panorama:
         st.subheader(f"No mapa: os maiores percentuais de disposição inadequada estão em {piores}")
         valores_uf = tuple(sorted(ranking.set_index("uf")["media_simples"].items()))
         feicoes, siglas = mapa_das_ufs(CAMINHO_MAPA, valores_uf, uf_selecionada)
-        mapa =alt.Chart(alt.Data(values=feicoes)).mark_geoshape().encode(
+        mapa = alt.Chart(alt.Data(values=feicoes)).mark_geoshape().encode(
             color=alt.Color("properties.valor:Q", scale=ESCALA_PIOR,
                             legend=alt.Legend(title="% disposição inadequada", orient="right", gradientLength=180)),
             stroke=alt.condition("datum.properties.sel", alt.value(COR_TEXTO), alt.value("#FFFFFF")),

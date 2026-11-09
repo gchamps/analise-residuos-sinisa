@@ -16,10 +16,13 @@ def test_media_ponderada_ignora_ausentes():
 
 def test_resumo_indicador_vazio_e_basico():
     assert c.resumo_indicador(pd.Series([], dtype=float), pd.Series([], dtype=float))["N"] == 0
-    r = c.resumo_indicador(pd.Series([0.0, 100.0, 50.0]), pd.Series([1, 1, 2]))
-    assert r["N"] == 3 and r["Média"] == pytest.approx(50.0)
-    assert r["% = 0"] == pytest.approx(100 / 3) and r["% = 100"] == pytest.approx(100 / 3)
-    assert r["Média ponderada"] == pytest.approx(50.0)
+    # valores e pesos escolhidos para que média simples, ponderada, %0 e %100 sejam todos diferentes
+    r = c.resumo_indicador(pd.Series([0.0, 0.0, 100.0, 40.0]), pd.Series([1, 1, 6, 2]))
+    assert r["N"] == 4 and r["Média"] == pytest.approx(35.0)
+    assert r["Mediana"] == pytest.approx(20.0) and r["Mínimo"] == 0 and r["Máximo"] == 100
+    assert r["% = 0"] == pytest.approx(50.0) and r["% = 100"] == pytest.approx(25.0)
+    assert r["Média ponderada"] == pytest.approx(68.0)     # (0*1 + 0*1 + 100*6 + 40*2) / 10
+    assert r["Desvio-padrão"] == pytest.approx(pd.Series([0.0, 0.0, 100.0, 40.0]).std(ddof=1))
 
 
 def test_montar_tabela_forma_e_exclusao(conn):
@@ -60,6 +63,20 @@ def test_resumo_por_faixa_cobre_todos(tabela):
     f = c.resumo_por_faixa(tabela)
     assert f["municipios"].sum() == 4854
     assert list(f["faixa"].astype(str)) == c.ROTULOS_FAIXA
+    # recálculo independente da faixa "até 10 mil"
+    pequenos = tabela[tabela["populacao_total"] <= 10_000]
+    linha = f.set_index("faixa").loc["até 10 mil"]
+    assert linha["municipios"] == len(pequenos)
+    assert linha["disposicao"] == pytest.approx(pequenos["IRS3002"].mean())
+    assert f["disposicao"].between(0, 100).all()
+
+
+def test_ranking_ordenado_por_posicao_e_uf(tabela):
+    r = c.ranking_uf(tabela)
+    assert list(r["uf"][:3]) == ["RR", "AM", "PA"]
+    chave = list(zip(r["posicao_simples"], r["uf"]))
+    assert chave == sorted(chave)
+    assert list(r["uf"][-2:]) == ["AL", "DF"]       # empatados em 0%, desempate alfabético
 
 
 def test_formatar_padrao_brasileiro():
