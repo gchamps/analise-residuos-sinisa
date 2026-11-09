@@ -6,7 +6,10 @@ em duas linhas e carrega os dados em um banco SQLite. O esquema do banco está
 documentado em sql/01_schema.sql, que é executado por este script.
 
 Fonte: Ministério das Cidades - SINISA 2025 (ano de referência 2024).
-Arquivo de entrada: dados_originais/SINISA_RESIDUOS_Indicadores_2024.xlsx
+Arquivos de entrada (pasta dados_originais/):
+    SINISA_RESIDUOS_Indicadores_2024.xlsx                          indicadores por município
+    SINISA_RESIDUOS_Informacoes_Formulario_Manejo_2024.xlsx        massas coletadas e rotas de coleta com o destino
+                                                                   (o IRS3002 sai das rotas; o ETL confere isso)
 
 Saídas (pasta dados_tratados/):
     projeto_residuos.db              banco SQLite
@@ -25,6 +28,7 @@ import hashlib
 import os
 import sqlite3
 import sys
+from pathlib import Path
 
 import pandas as pd
 
@@ -299,19 +303,21 @@ def carregar(conn, municipios, resultados, destinacao):
     conn.commit()
 
 
-def exportar_csvs(conn):
-    """Gera os CSVs a partir do próprio banco (garante que são idênticos a ele)."""
+def exportar_csvs(conn, sufixo=""):
+    """Gera os CSVs a partir do próprio banco (garante que são idênticos a ele).
+
+    `sufixo` permite gravar em arquivos temporários (o ETL os troca junto com o banco).
+    """
     municipios = pd.read_sql_query("SELECT * FROM municipio ORDER BY cod_ibge", conn)
     resultados = pd.read_sql_query(
         "SELECT cod_ibge, codigo_indicador, valor, ano_referencia, flag_qualidade "
         "FROM resultado_indicador ORDER BY codigo_indicador, cod_ibge",
         conn,
     )
-    # utf-8-sig para o Excel abrir os acentos corretamente
-    municipios.to_csv(CAMINHO_CSV_MUNICIPIOS, index=False, encoding="utf-8-sig")
-    resultados.to_csv(CAMINHO_CSV_RESULTADOS, index=False, encoding="utf-8-sig")
+    # utf-8-sig para o Excel abrir os acentos corretamente; fim de linha fixo para o arquivo ser igual em qualquer sistema
+    municipios.to_csv(CAMINHO_CSV_MUNICIPIOS + sufixo, index=False, encoding="utf-8-sig", lineterminator="\n")
+    resultados.to_csv(CAMINHO_CSV_RESULTADOS + sufixo, index=False, encoding="utf-8-sig", lineterminator="\n")
     return len(municipios), len(resultados)
-
 
 # -----------------------------------------------------------------------------
 # Validação
@@ -375,8 +381,13 @@ def validar_carga(conn):
         "FROM resultado_indicador r JOIN destinacao_municipio d USING (cod_ibge) "
         "WHERE r.codigo_indicador = 'IRS3002' AND d.massa_coletada - COALESCE(d.massa_recuperada, 0) > 0",
         (TOLERANCIA_IRS3002_PP,)).fetchone()
-    print(f"IRS3002 recalculado pelas rotas de coleta: {n_conferidos} municípios conferidos, "
+    n_irs3002 = escalar("SELECT COUNT(*) FROM resultado_indicador WHERE codigo_indicador = 'IRS3002'")
+    maior_diferenca = maior_diferenca or 0.0
+    print(f"IRS3002 recalculado pelas rotas de coleta: {n_conferidos} de {n_irs3002} municípios conferidos, "
           f"maior diferença {maior_diferenca:.4f} p.p.")
+    if n_conferidos != n_irs3002:
+        problemas.append(f"só {n_conferidos} dos {n_irs3002} municípios com IRS3002 puderam ser conferidos "
+                         "contra as rotas (massa coletada líquida ausente ou não positiva).")
     if divergentes:
         problemas.append(f"{divergentes} municípios têm IRS3002 diferente do recalculado pelas rotas "
                          f"(tolerância {TOLERANCIA_IRS3002_PP} p.p.).")
@@ -417,12 +428,17 @@ def calcular_hash_entradas():
     return resumo.hexdigest()
 
 
+def abrir_somente_leitura(caminho):
+    """Abre o banco só para leitura; funciona com '#', '?' e '%' no caminho (usa URI codificada)."""
+    return sqlite3.connect(Path(caminho).resolve().as_uri() + "?mode=ro", uri=True)
+
+
 def banco_esta_atualizado(hash_atual):
     """True se o banco e os CSVs existem e foram gerados com as mesmas entradas."""
     if not all(os.path.exists(p) for p in (CAMINHO_BANCO, CAMINHO_CSV_MUNICIPIOS, CAMINHO_CSV_RESULTADOS)):
         return False
     try:
-        conn = sqlite3.connect(f"file:{CAMINHO_BANCO}?mode=ro", uri=True)
+        conn = abrir_somente_leitura(CAMINHO_BANCO)
         try:
             linha = conn.execute("SELECT valor FROM etl_meta WHERE chave = 'hash_entradas'").fetchone()
         finally:
@@ -447,35 +463,54 @@ def executar_etl(forcar=False):
     destinacao = preparar_destinacao(ler_rotas_destino(CAMINHO_EXCEL_MANEJO),
                                      ler_massas_manejo(CAMINHO_EXCEL_MANEJO), municipios["cod_ibge"])
 
-    # O banco é montado em arquivo temporário e só substitui o atual se a validação passar:
-    # um ETL que falha não deixa o banco pela metade, e o arquivo gerado é sempre o mesmo para as mesmas entradas.
+    # Banco e CSVs são montados em arquivos temporários (com o número do processo no nome, para duas execuções
+    # simultâneas não se misturarem) e só substituem os atuais se a validação passar. Um ETL que falha, ou que não
+    # consegue substituir o banco (por exemplo, aberto em outro programa), não deixa nada pela metade.
     os.makedirs(os.path.dirname(CAMINHO_BANCO), exist_ok=True)
-    caminho_temporario = CAMINHO_BANCO + ".tmp"
-    if os.path.exists(caminho_temporario):
-        os.remove(caminho_temporario)
-    conn = sqlite3.connect(caminho_temporario)
+    sufixo = f".{os.getpid()}.tmp"
+    banco_tmp = CAMINHO_BANCO + sufixo
+    csvs = [(CAMINHO_CSV_MUNICIPIOS + sufixo, CAMINHO_CSV_MUNICIPIOS),
+            (CAMINHO_CSV_RESULTADOS + sufixo, CAMINHO_CSV_RESULTADOS)]
     try:
-        conn.execute("PRAGMA foreign_keys = ON;")
-        criar_esquema(conn)
-        carregar(conn, municipios, resultados, destinacao)
-        conn.execute("INSERT INTO etl_meta (chave, valor) VALUES ('hash_entradas', ?)", (hash_atual,))
-        conn.commit()
-        print("Carga concluída. Validando...")
-        problemas = validar_carga(conn)
-        if not problemas:
-            n_mun, n_res = exportar_csvs(conn)
-            print(f"CSVs gerados: municipios.csv ({n_mun} linhas) e resultados_indicadores_mpv.csv ({n_res} linhas).")
+        conn = sqlite3.connect(banco_tmp)
+        try:
+            conn.execute("PRAGMA foreign_keys = ON;")
+            criar_esquema(conn)
+            carregar(conn, municipios, resultados, destinacao)
+            conn.execute("INSERT INTO etl_meta (chave, valor) VALUES ('hash_entradas', ?)", (hash_atual,))
+            conn.commit()
+            print("Carga concluída. Validando...")
+            problemas = validar_carga(conn)
+            if not problemas:
+                n_mun, n_res = exportar_csvs(conn, sufixo)
+        finally:
+            conn.close()
+
+        if problemas:
+            print("\nPROBLEMAS ENCONTRADOS (o banco e os CSVs anteriores foram mantidos):")
+            for problema in problemas:
+                print(f"  - {problema}")
+            sys.exit(1)
+
+        try:
+            os.replace(banco_tmp, CAMINHO_BANCO)
+        except PermissionError:
+            sys.exit("Não consegui substituir o banco: ele está aberto em outro programa (DB Browser, Streamlit, testes). "
+                     "Feche-o e rode de novo. O banco e os CSVs anteriores foram mantidos.")
+        for temporario, destino in csvs:
+            try:
+                os.replace(temporario, destino)
+            except PermissionError:
+                sys.exit(f"O banco foi atualizado, mas não consegui substituir {destino} (aberto no Excel?). "
+                         "Feche o arquivo e rode: python scripts/etl_sqlite.py --forcar")
+        print(f"CSVs gerados: municipios.csv ({n_mun} linhas) e resultados_indicadores_mpv.csv ({n_res} linhas).")
     finally:
-        conn.close()
-
-    if problemas:
-        os.remove(caminho_temporario)
-        print("\nPROBLEMAS ENCONTRADOS (o banco anterior foi mantido):")
-        for problema in problemas:
-            print(f"  - {problema}")
-        sys.exit(1)
-
-    os.replace(caminho_temporario, CAMINHO_BANCO)
+        for temporario in [banco_tmp] + [t for t, _ in csvs]:
+            if os.path.exists(temporario):
+                try:
+                    os.remove(temporario)
+                except OSError:
+                    pass
     print("ETL finalizado sem problemas.")
 
 

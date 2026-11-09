@@ -11,6 +11,10 @@
 --   * Dimensões: municipio e indicador
 --   * Fato:      resultado_indicador (um valor por município x indicador x ano)
 --
+-- Tabelas de apoio (fora do esquema estrela):
+--   * destinacao_municipio  massa das rotas de coleta por classe de destino; reproduz o IRS3002
+--   * etl_meta              metadados da carga (impressão digital das entradas)
+--
 -- Observação de modelagem: em um esquema estrela as dimensões são mantidas
 -- desnormalizadas de propósito. Por isso a coluna "regiao" fica em municipio,
 -- embora dependa de "uf".

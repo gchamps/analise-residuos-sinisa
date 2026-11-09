@@ -16,7 +16,8 @@ CAMINHO_BANCO = os.path.join(RAIZ, "dados_tratados", "projeto_residuos.db")
 def conn():
     if not os.path.exists(CAMINHO_BANCO):
         pytest.fail(f"Banco ausente: {CAMINHO_BANCO}. Rode scripts/etl_sqlite.py.")
-    c = sqlite3.connect(f"file:{CAMINHO_BANCO}?mode=ro", uri=True)
+    from pathlib import Path
+    c = sqlite3.connect(Path(CAMINHO_BANCO).resolve().as_uri() + "?mode=ro", uri=True)
     yield c
     c.close()
 

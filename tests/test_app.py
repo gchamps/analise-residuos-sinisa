@@ -24,17 +24,20 @@ def test_brasil_sem_excecoes():
     assert "33,9%" in texto                      # média nacional de disposição inadequada
     legendas = " ".join(c.value for c in app.caption)
     assert "Média ponderada 20,79%" in legendas and "Média ponderada 92,63%" in legendas
-    # etapa 3: evidência de infraestrutura para os zeros
-    assert "Dos 3.057 municípios com 0%" in texto
+    # etapa 3: destino declarado pelas rotas de coleta dos municípios com 0%
     assert "Dos 3.057 municípios com 0%" in texto
     assert "2.880 (94%) declararam rotas a aterro sanitário ou de inertes" in texto
-    assert "174 (6%) declararam, em boa parte, unidades intermediárias" in texto
+    assert "174 (6%) cobrem a massa só ao somar unidades intermediárias" in texto
     assert "3 (0%) declararam rotas que cobrem menos de 90% da massa" in texto
     assert "Nenhum zero declara rota a lixão, vazadouro ou aterro controlado" in texto
     assert "Os dados são autodeclarados" in texto                         # limite da evidência sempre explícito
     legendas_mapa = " ".join(c.value for c in app.caption)
     assert "AL, SC, ES, PE, RS, PB, SE, SP, mais de 90% dos municípios registram exatamente 0%, e 94%" in legendas_mapa
     assert "Atenção em" not in legendas_mapa                              # o alerta por UF era artefato da fonte errada
+    assert "que cobrem ao menos 90% da massa coletada líquida" in legendas_mapa
+    # frases de versões anteriores, que a análise das rotas desmentiu, não podem voltar
+    tudo = texto + " " + legendas + " " + " ".join(c.value for c in app.caption)
+    assert "isso não foi verificado" not in tudo and "informação não preenchida" not in tudo
 
 
 def test_uf_selecionada_sem_excecoes():

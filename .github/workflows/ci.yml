@@ -18,7 +18,13 @@ jobs:
       - run: pip install -r requirements.lock.txt
       - name: Testes
         run: python -m pytest -q
+      - name: Guarda o banco versionado
+        run: cp dados_tratados/projeto_residuos.db "$RUNNER_TEMP/versionado.db"
       - name: ETL refaz o banco a partir das planilhas (confere o IRS3002 contra as rotas)
         run: python scripts/etl_sqlite.py --forcar
+      - name: Banco regerado tem o mesmo conteúdo do versionado
+        run: python scripts/comparar_bancos.py "$RUNNER_TEMP/versionado.db" dados_tratados/projeto_residuos.db
+      - name: CSVs regerados são iguais aos versionados
+        run: git diff --exit-code -- dados_tratados/municipios.csv dados_tratados/resultados_indicadores_mpv.csv
       - name: Testes após regerar o banco
         run: python -m pytest -q

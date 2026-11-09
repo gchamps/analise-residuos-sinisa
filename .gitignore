@@ -12,3 +12,5 @@ venv/
 # Arquivos do sistema
 .DS_Store
 Thumbs.db
+# Arquivos temporarios do ETL
+*.tmp

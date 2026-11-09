@@ -166,7 +166,7 @@ zeros_uf = tabela_brasil.dropna(subset=["IRS3002"]).groupby("uf")["IRS3002"].agg
     n="size", pct_zero=lambda v: (v == 0).mean() * 100)
 suspeitas = zeros_uf[(zeros_uf["n"] >= 10) & (zeros_uf["pct_zero"] > 90)].sort_values("pct_zero", ascending=False)
 suspeitas_txt = ", ".join(suspeitas.index) if len(suspeitas) else ""
-# Classificação dos zeros do IRS3002 pelos fluxos de destinação declarados (planilha de Destinação Final)
+# Classificação dos zeros do IRS3002 pelo destino das rotas de coleta declaradas (planilha de Manejo)
 tabela_brasil = tabela_brasil.assign(evidencia_zero=classificar_zeros(tabela_brasil, df_destinacao))
 zeros_classificados = tabela_brasil[tabela_brasil["evidencia_zero"].notna()]
 pct_confirmado_suspeitas = None
@@ -272,8 +272,8 @@ with aba_panorama:
         st.altair_chart(estilizar((mapa + rotulos_mapa).project(type="mercator").properties(height=480)))
         st.caption("Média simples do IRS3002 (disposição final inadequada) dos municípios de cada UF. Quanto mais escuro, pior."
                    + (f" Em {suspeitas_txt}, mais de 90% dos municípios registram exatamente 0%, e "
-                      f"{formatar(pct_confirmado_suspeitas, 0, '%')} desses zeros declaram rotas de coleta para aterro sanitário "
-                      "ou de inertes. O valor vem da declaração de cada município; veja o quadro \"O que significa um 0%?\", "
+                      f"{formatar(pct_confirmado_suspeitas, 0, '%')} desses zeros declaram rotas para aterro sanitário "
+                      "ou de inertes que cobrem ao menos 90% da massa coletada líquida. O valor vem da declaração de cada município; veja o quadro \"O que significa um 0%?\", "
                       "em Distribuição." if suspeitas_txt and pct_confirmado_suspeitas is not None else ""))
 
     with st.container(border=True):
@@ -352,7 +352,7 @@ with aba_panorama:
                     "cada uma com o tipo de unidade de destino: 0% quer dizer que nenhuma rota vai a lixão, vazadouro ou aterro "
                     f"controlado. Dos {formatar(total_z, 0)} municípios com 0% neste recorte, {formatar(n_conf, 0)} ({pct(n_conf)}) "
                     "declararam rotas a aterro sanitário ou de inertes que cobrem ao menos 90% da massa coletada líquida; "
-                    f"{formatar(n_inter, 0)} ({pct(n_inter)}) declararam, em boa parte, unidades intermediárias (transbordo, "
+                    f"{formatar(n_inter, 0)} ({pct(n_inter)}) cobrem a massa só ao somar unidades intermediárias (transbordo, "
                     "triagem, compostagem), sem informar o destino final dos rejeitos; "
                     f"{formatar(n_inc, 0)} ({pct(n_inc)}) declararam rotas que cobrem menos de 90% da massa. "
                     + (f"{formatar(n_contra, 0)} declaram rota a lixão ou aterro controlado e ainda assim registram 0% (contradição). "
@@ -424,7 +424,8 @@ with aba_estados:
         st.altair_chart(estilizar((barras_rank + textos).properties(height=27 * 20)))
         st.caption("Do pior para o melhor, com a mesma escala de cor do mapa. A UF selecionada tem contorno escuro. "
                    "As duas medidas podem divergir bastante porque o IRS3002 se concentra em 0% e 100%. "
-                   "UFs com 0,0% ou 100% pedem cautela: o 0 pode significar ausência de disposição inadequada ou informação não preenchida."
+                   "UFs com 0,0% ou 100% pedem leitura cuidadosa: 0 significa que nenhum município declarou rota para lixão, "
+                   "vazadouro ou aterro controlado, e 100%, que todos declararam."
                    + (f" Em {suspeitas_txt}, mais de 90% dos municípios registram exatamente 0%." if suspeitas_txt else ""))
 
     with st.container(border=True):
@@ -508,7 +509,8 @@ with aba_municipios:
                               f"com cobertura acima de 95%, {formatar(p100['mais de 95%'], 0, '%')}.")
             if not pd.isna(rho):
                 frases.append(f"Correlação de Spearman = {formatar(rho, 2)} (associação, não causalidade).")
-            st.caption(" ".join(frases) + " Um 0% mesmo com cobertura baixa pode indicar informação não preenchida, e isso não foi verificado.")
+            st.caption(" ".join(frases) + " Um 0% de disposição inadequada com cobertura baixa é possível: o indicador "
+                       "usa a massa efetivamente coletada, e a maioria desses municípios declara rotas para aterro.")
     with st.container(border=True):
         st.markdown('<div class="passo">Dados por município</div>', unsafe_allow_html=True)
         st.subheader("Tabela de municípios")
@@ -546,7 +548,9 @@ with aba_metodo:
         "- **Média ponderada:** usa a população total do município como peso.\n"
         "- **Valores suspeitos:** percentuais acima de 100 e massa per capita acima de 3 kg/hab.dia são "
         "marcados no ETL e mantidos por padrão; use o filtro lateral para excluí-los.\n"
-        "- **Zeros:** o valor 0 pode indicar ausência do serviço ou do envio da informação; consulte o glossário do SINISA.\n"
+        "- **Zeros:** no IRS3002, 0% significa que o município não declarou nenhuma rota de coleta para lixão, vazadouro ou "
+        "aterro controlado; na maioria dos casos (94%) as rotas declaradas vão a aterro sanitário ou de inertes. Nos demais "
+        "indicadores, 0 pode indicar ausência do serviço ou do envio da informação. Os dados são autodeclarados.\n"
         "- **Escopo:** os indicadores tratam de resíduos sólidos urbanos municipais, não de resíduos industriais "
         "nem da gestão ambiental de empresas.\n"
         "- **Associação não é causalidade:** os resultados descrevem os dados e não explicam suas causas."
