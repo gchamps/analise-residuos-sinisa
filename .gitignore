@@ -14,3 +14,6 @@ venv/
 Thumbs.db
 # Arquivos temporarios do ETL
 *.tmp
+~$*
+*-journal
+.streamlit/secrets.toml

@@ -17,7 +17,7 @@ Projeto de extensão do 4º semestre (FATEC São Bernardo do Campo). Organiza, a
 | MPV publicado | _link da aplicação: preencher após o deploy (veja "Publicação")_ |
 
 ## Como rodar
-Requer Python 3.10+ (testado com 3.12).
+Requer Python 3.11 ou superior (testado com 3.12).
 
 **Windows (PowerShell)**
 ```powershell

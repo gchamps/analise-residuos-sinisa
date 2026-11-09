@@ -25,8 +25,13 @@ def diferencas(caminho_a, caminho_b):
     a, b = abrir(caminho_a), abrir(caminho_b)
     try:
         for tabela in TABELAS:
-            consulta = f"SELECT * FROM {tabela} ORDER BY 1, 2, 3"
-            linhas_a, linhas_b = a.execute(consulta).fetchall(), b.execute(consulta).fetchall()
+            consulta = f"SELECT * FROM {tabela} ORDER BY 1"      # a 1ª coluna é a chave (ou parte dela) nas 5 tabelas
+            try:
+                linhas_a, linhas_b = a.execute(consulta).fetchall(), b.execute(consulta).fetchall()
+            except sqlite3.OperationalError as erro:
+                problemas.append(f"{tabela}: não pôde ser lida em um dos bancos ({erro})")
+                continue
+            linhas_a, linhas_b = sorted(linhas_a, key=repr), sorted(linhas_b, key=repr)   # ordem total, independe de empates
             if linhas_a != linhas_b:
                 n_dif = sum(1 for x, y in zip(linhas_a, linhas_b) if x != y) + abs(len(linhas_a) - len(linhas_b))
                 problemas.append(f"{tabela}: {len(linhas_a)} x {len(linhas_b)} linhas, {n_dif} diferentes")

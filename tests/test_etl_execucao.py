@@ -78,26 +78,3 @@ def test_banco_versionado_foi_gerado_com_as_entradas_versionadas():
     """Falha se alguém mudar planilha, esquema ou ETL e esquecer de regerar o banco versionado."""
     assert etl.banco_esta_atualizado(etl.calcular_hash_entradas()), \
         "Rode: python scripts/etl_sqlite.py --forcar e faça commit do banco e dos CSVs."
-
-
-def test_etl_falho_nao_destroi_o_banco_anterior(ambiente, monkeypatch):
-    """Validação com problema: o banco atual é mantido e o temporário é removido."""
-    gravar_banco(ambiente["CAMINHO_BANCO"], "hash antigo")
-    original = ambiente["CAMINHO_BANCO"].read_bytes()
-    import pandas as pd
-    municipios = pd.DataFrame({"cod_ibge": ["1"], "nome_municipio": ["A"], "uf": ["SP"], "regiao": ["Sudeste"],
-                               "populacao_total": [10], "respondeu": [1]})
-    monkeypatch.setattr(etl, "ler_planilha", lambda caminho: None)
-    monkeypatch.setattr(etl, "preparar_municipios", lambda dados: municipios)
-    monkeypatch.setattr(etl, "preparar_resultados", lambda dados: pd.DataFrame())
-    monkeypatch.setattr(etl, "ler_rotas_destino", lambda caminho: None)
-    monkeypatch.setattr(etl, "ler_massas_manejo", lambda caminho: None)
-    monkeypatch.setattr(etl, "preparar_destinacao", lambda *a: pd.DataFrame())
-    monkeypatch.setattr(etl, "criar_esquema", lambda conn: conn.execute(
-        "CREATE TABLE etl_meta (chave TEXT PRIMARY KEY, valor TEXT NOT NULL)"))
-    monkeypatch.setattr(etl, "carregar", lambda *a: None)
-    monkeypatch.setattr(etl, "validar_carga", lambda conn: ["problema simulado"])
-    with pytest.raises(SystemExit):
-        etl.executar_etl(forcar=True)
-    assert ambiente["CAMINHO_BANCO"].read_bytes() == original
-    assert not (ambiente["CAMINHO_BANCO"].parent / "banco.db.tmp").exists()

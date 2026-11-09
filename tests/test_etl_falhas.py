@@ -169,6 +169,33 @@ def test_comparar_bancos_iguais_e_diferentes(tmp_path):
     assert len(achados) == len(comparar_bancos.TABELAS)
 
 
+def test_comparar_bancos_com_o_banco_real_versionado():
+    """Regressão do achado alto da auditoria final: o script quebrava com as tabelas reais (etl_meta tem 2 colunas)."""
+    banco = os.path.join(RAIZ, "dados_tratados", "projeto_residuos.db")
+    assert comparar_bancos.diferencas(banco, banco) == []
+
+
+def test_comparar_bancos_acusa_tabela_ausente(tmp_path):
+    _banco(tmp_path / "a.db", "x")
+    vazio = sqlite3.connect(tmp_path / "vazio.db")
+    vazio.close()
+    achados = comparar_bancos.diferencas(tmp_path / "a.db", tmp_path / "vazio.db")
+    assert len(achados) == len(comparar_bancos.TABELAS) and all("não pôde ser lida" in a for a in achados)
+
+
+def test_comparar_bancos_detecta_uma_celula_alterada_no_banco_real(tmp_path):
+    import shutil
+    original = os.path.join(RAIZ, "dados_tratados", "projeto_residuos.db")
+    copia = tmp_path / "copia.db"
+    shutil.copyfile(original, copia)
+    conn = sqlite3.connect(copia)
+    conn.execute("UPDATE resultado_indicador SET valor = valor + 1 WHERE id_resultado = 1")
+    conn.commit()
+    conn.close()
+    achados = comparar_bancos.diferencas(original, copia)
+    assert len(achados) == 1 and achados[0].startswith("resultado_indicador")
+
+
 def test_banco_com_caractere_especial_no_caminho(tmp_path):
     pasta = tmp_path / "dados #1 100%"
     pasta.mkdir()

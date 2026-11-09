@@ -188,15 +188,16 @@ st.title("Para onde vão os resíduos dos municípios brasileiros?")
 
 m3002 = resumo_uf["IRS3002"]
 if uf_selecionada == TODO_BRASIL:
-    lede = (f"Nos {formatar(n_resp, 0)} municípios que responderam, em média {formatar(m3002['Média'], 1, '%')} dos resíduos coletados "
-            f"vão para lixão, vazadouro ou aterro controlado. Mas a média esconde uma desigualdade regional: "
-            f"{formatar(pior_regiao['disposicao'], 0, '%')} na região {pior_regiao['regiao']} contra "
-            f"{formatar(melhor_regiao['disposicao'], 0, '%')} na região {melhor_regiao['regiao']}.")
+    lede = (f"Nos {formatar(n_resp, 0)} municípios que responderam, a destinação para lixão, vazadouro ou aterro controlado é, "
+            f"em média, de {formatar(m3002['Média'], 1, '%')} dos resíduos coletados por município. Mas a média esconde uma "
+            f"desigualdade regional: {formatar(pior_regiao['disposicao'], 0, '%')} na região {pior_regiao['regiao']} contra "
+            f"{formatar(melhor_regiao['disposicao'], 0, '%')} na região {melhor_regiao['regiao']} (média dos municípios de cada região).")
 else:
     linha = ranking[ranking["uf"] == uf_selecionada]
     pos = f" ({int(linha.iloc[0]['posicao_simples'])}ª pior entre {len(ranking)} UFs)" if not linha.empty else ""
-    lede = (f"Em {uf_selecionada}, em média {formatar(m3002['Média'], 1, '%')} dos resíduos vão para lixão, vazadouro ou aterro "
-            f"controlado{pos}, contra {formatar(resumo_br['IRS3002']['Média'], 1, '%')} no Brasil. "
+    lede = (f"Em {uf_selecionada}, a destinação para lixão, vazadouro ou aterro controlado é, em média, de "
+            f"{formatar(m3002['Média'], 1, '%')} dos resíduos coletados por município{pos}, "
+            f"contra {formatar(resumo_br['IRS3002']['Média'], 1, '%')} no Brasil. "
             f"Ponderando pela população, {formatar(m3002['Média ponderada'], 1, '%')}.")
 st.markdown(f'<p class="lede">{lede}</p>', unsafe_allow_html=True)
 st.caption(f"{formatar(n_resp, 0)} de {formatar(n_total, 0)} municípios do recorte responderam ao módulo de resíduos ({formatar(n_resp / n_total * 100, 1)}%).")
@@ -207,7 +208,9 @@ for coluna, (codigo, rotulo, sufixo) in zip(colunas, KPIS):
     base = resumo_br[codigo]["Média"]
     delta = None
     if uf_selecionada != TODO_BRASIL and r["Média"] is not None and not pd.isna(r["Média"]):
-        delta = f"{r['Média'] - base:+.2f} vs. Brasil".replace(".", ",")
+        diferenca = r["Média"] - base
+        unidade_delta = "p.p." if sufixo == "%" else "kg/hab.dia"
+        delta = f"{'+' if diferenca >= 0 else '-'}{formatar(abs(diferenca), 2)} {unidade_delta} vs. Brasil"
     with coluna.container(border=True):
         st.metric(rotulo, formatar(r["Média"], 2, sufixo), delta,
                   delta_color="inverse" if codigo == "IRS3002" else ("off" if codigo == "IRS1004" else "normal"),
@@ -230,8 +233,9 @@ with aba_panorama:
     with st.container(border=True):
         st.markdown('<div class="passo">Regiões</div>', unsafe_allow_html=True)
         # 1) Onde: regiões ---------------------------------------------------------
-        st.subheader(f"Onde é pior: a região {pior_regiao['regiao']} destina {formatar(pior_regiao['disposicao'], 0, '%')} dos "
-                     f"resíduos de forma inadequada; a {melhor_regiao['regiao']}, {formatar(melhor_regiao['disposicao'], 0, '%')}")
+        st.subheader(f"Onde é pior: os municípios da região {pior_regiao['regiao']} destinam, em média, "
+                     f"{formatar(pior_regiao['disposicao'], 0, '%')} dos resíduos de forma inadequada; os da {melhor_regiao['regiao']}, "
+                     f"{formatar(melhor_regiao['disposicao'], 0, '%')}")
         ordem_reg = por_regiao.sort_values("disposicao", ascending=False)["regiao"].tolist()
 
         def painel_regiao(coluna, titulo, cor, mostrar_rotulos_y):
@@ -319,12 +323,17 @@ with aba_panorama:
         s3002 = tabela["IRS3002"].dropna()
         if len(s3002) and linhas_d:
             z3, c3 = (s3002 == 0).mean() * 100, (s3002 >= 100).mean() * 100
-            st.subheader(f"Por que a média engana: {formatar(z3 + c3, 0, '%')} dos municípios registram 0% ou 100% de disposição inadequada")
-            st.markdown(
-                f"A média ({formatar(s3002.mean(), 1, '%')}) não descreve um município típico. {formatar(z3, 0, '%')} registram 0%, "
-                f"{formatar(c3, 0, '%')} registram 100% e só {formatar(100 - z3 - c3, 0, '%')} ficam no meio. Por isso, em vez de só a média, "
-                "o gráfico abaixo mostra como os municípios se dividem em cada indicador.")
-            df_d = pd.DataFrame(linhas_d)
+            if z3 == 100 or c3 == 100:
+                st.subheader(f"Neste recorte, todos os municípios registram {'0%' if z3 == 100 else '100%'} de disposição inadequada")
+                st.markdown("Não há variação entre os municípios deste recorte; o gráfico abaixo mostra como eles se dividem "
+                            "nos demais indicadores.")
+            else:
+                st.subheader(f"Por que a média engana: {formatar(z3 + c3, 0, '%')} dos municípios registram 0% ou 100% de disposição inadequada")
+                st.markdown(
+                    f"A média ({formatar(s3002.mean(), 1, '%')}) não descreve um município típico. {formatar(z3, 0, '%')} registram 0%, "
+                    f"{formatar(c3, 0, '%')} registram 100% e só {formatar(100 - z3 - c3, 0, '%')} ficam no meio. Por isso, em vez de só a média, "
+                    "o gráfico abaixo mostra como os municípios se dividem em cada indicador.")
+            df_d = pd.DataFrame(linhas_d).assign(pct_txt=lambda d: d["pct"].map(lambda v: formatar(v, 1, "%")))
             ordem_ind = list(dict.fromkeys(df_d["indicador"]))
             base_d = alt.Chart(df_d).encode(
                 y=alt.Y("indicador:N", sort=ordem_ind, title=None, axis=alt.Axis(labelLimit=260, labelPadding=6, labelOverlap=False)),
@@ -334,23 +343,25 @@ with aba_panorama:
                                 scale=alt.Scale(domain=rotulos_sit4, range=["#C9CED6", "#E2D4B0", "#4C6A92"]),
                                 legend=alt.Legend(title="Valor registrado", orient="top")),
                 order=alt.Order("ordem:Q"),
-                tooltip=["indicador", "situacao", alt.Tooltip("pct:Q", title="% dos municípios", format=".1f")])
+                tooltip=["indicador", "situacao", alt.Tooltip("pct_txt:N", title="% dos municípios")])
             textos_d = base_d.mark_text(fontSize=12).encode(
                 text="rotulo:N", order=alt.Order("ordem:Q"), x=alt.X("pct:Q", stack="zero", bandPosition=0.5),
                 color=alt.condition(alt.datum.situacao == "100%", alt.value("#FFFFFF"), alt.value(COR_TEXTO)))
             st.altair_chart(estilizar((barras_d + textos_d).properties(height=48 * len(ordem_ind))))
             st.caption("Cada barra soma 100% dos municípios. Cinza: registraram 0%. Azul: registraram 100%. Areia: ficaram entre 1% e 99%. "
-                       "O valor 0 significa que o município não declarou nenhuma rota de coleta para lixão, vazadouro ou aterro controlado.")
+                       "No IRS3002, 0 significa que o município não declarou nenhuma rota de coleta para lixão, vazadouro ou aterro "
+                       "controlado; nos demais indicadores, 0 pode indicar ausência do serviço ou da informação.")
             # Destino declarado dos municípios com 0% (rotas de coleta da planilha de Manejo)
             evid = resumo_evidencia_zeros(tabela, df_destinacao)
             total_z = int(evid.sum())
             if total_z:
                 n_conf, n_inter, n_inc, n_contra = (int(evid[r]) for r in ROTULOS_EVIDENCIA)
-                pct = lambda n: formatar(n / total_z * 100, 0, "%")  # noqa: E731
+                pct = lambda n: ("menos de 1%" if 0 < n / total_z < 0.005 else formatar(n / total_z * 100, 0, "%"))  # noqa: E731
+                sujeito = "o único município com 0%" if total_z == 1 else f"os {formatar(total_z, 0)} municípios com 0%"
                 st.markdown(
                     "**O que significa um 0%?** O IRS3002 é calculado a partir das rotas de coleta que cada município declara, "
                     "cada uma com o tipo de unidade de destino: 0% quer dizer que nenhuma rota vai a lixão, vazadouro ou aterro "
-                    f"controlado. Dos {formatar(total_z, 0)} municípios com 0% neste recorte, {formatar(n_conf, 0)} ({pct(n_conf)}) "
+                    f"controlado. Entre {sujeito} neste recorte, {formatar(n_conf, 0)} ({pct(n_conf)}) "
                     "declararam rotas a aterro sanitário ou de inertes que cobrem ao menos 90% da massa coletada líquida; "
                     f"{formatar(n_inter, 0)} ({pct(n_inter)}) cobrem a massa só ao somar unidades intermediárias (transbordo, "
                     "triagem, compostagem), sem informar o destino final dos rejeitos; "
@@ -363,6 +374,8 @@ with aba_panorama:
                            .rename("n").reset_index())
                 por_reg["pct"] = por_reg["n"] / por_reg.groupby("regiao")["n"].transform("sum") * 100
                 por_reg["rotulo"] = por_reg["pct"].map(lambda v: formatar(v, 0, "%") if v >= 6 else "")
+                por_reg["pct_txt"] = por_reg["pct"].map(lambda v: formatar(v, 1, "%"))
+                por_reg["ordem"] = por_reg["evidencia_zero"].map({r: i for i, r in enumerate(ROTULOS_EVIDENCIA)})
                 ordem_r = por_reg.groupby("regiao")["n"].sum().sort_values(ascending=False).index.tolist()
                 ordem_e = ROTULOS_EVIDENCIA
                 base_e = alt.Chart(por_reg).encode(
@@ -372,11 +385,11 @@ with aba_panorama:
                     color=alt.Color("evidencia_zero:N", sort=ordem_e,
                                     scale=alt.Scale(domain=ordem_e, range=["#1F5E4B", "#D9A441", "#8A8F98", "#B5451B"]),
                                     legend=alt.Legend(title="Destino declarado", orient="top")),
-                    order=alt.Order("evidencia_zero:N", sort="ascending"),
+                    order=alt.Order("ordem:Q"),
                     tooltip=["regiao", "evidencia_zero", alt.Tooltip("n:Q", title="municípios"),
-                             alt.Tooltip("pct:Q", title="%", format=".1f")])
+                             alt.Tooltip("pct_txt:N", title="%")])
                 textos_e = base_e.mark_text(fontSize=12, color="#FFFFFF").encode(
-                    text="rotulo:N", order=alt.Order("evidencia_zero:N", sort="ascending"),
+                    text="rotulo:N", order=alt.Order("ordem:Q"),
                     x=alt.X("pct:Q", stack="zero", bandPosition=0.5))
                 st.altair_chart(estilizar((barras_e + textos_e).properties(height=40 * len(ordem_r))))
                 st.caption("Fonte: rotas de coleta e tipo de unidade de destino da planilha de Manejo do SINISA, comparadas com a massa "
@@ -425,7 +438,7 @@ with aba_estados:
         st.caption("Do pior para o melhor, com a mesma escala de cor do mapa. A UF selecionada tem contorno escuro. "
                    "As duas medidas podem divergir bastante porque o IRS3002 se concentra em 0% e 100%. "
                    "UFs com 0,0% ou 100% pedem leitura cuidadosa: 0 significa que nenhum município declarou rota para lixão, "
-                   "vazadouro ou aterro controlado, e 100%, que todos declararam."
+                   "vazadouro ou aterro controlado, e 100%, que toda a massa coletada vai a esses destinos."
                    + (f" Em {suspeitas_txt}, mais de 90% dos municípios registram exatamente 0%." if suspeitas_txt else ""))
 
     with st.container(border=True):
@@ -473,7 +486,8 @@ with aba_municipios:
         st.subheader("Cobertura da coleta e disposição inadequada: como os municípios se distribuem")
         dispersao = tabela.dropna(subset=["IRS0001", "IRS3002"]).copy()
         if len(dispersao) > 10:
-            rho = float(spearmanr(dispersao["IRS0001"], dispersao["IRS3002"])[0])
+            tem_variacao = dispersao["IRS0001"].nunique() > 1 and dispersao["IRS3002"].nunique() > 1
+            rho = float(spearmanr(dispersao["IRS0001"], dispersao["IRS3002"])[0]) if tem_variacao else float("nan")
             rotulos_cob = ["até 50%", "50 a 80%", "80 a 95%", "mais de 95%"]
             rotulos_sit = ["0%", "1% a 99%", "100%"]
             dispersao["faixa_cob"] = pd.cut(dispersao["IRS0001"], [-0.01, 50, 80, 95, 100.01], labels=rotulos_cob)
@@ -484,6 +498,7 @@ with aba_municipios:
             cont["pct"] = cont["n"] / cont["total"] * 100
             cont["ordem"] = cont["situacao"].map({s: i for i, s in enumerate(rotulos_sit)}).astype(int)
             cont["rotulo"] = cont["pct"].map(lambda v: formatar(v, 0, "%") if v >= 3 else "")
+            cont["pct_txt"] = cont["pct"].map(lambda v: formatar(v, 1, "%"))
             cont["eixo"] = [f"{f} ({formatar(t, 0)})" for f, t in zip(cont["faixa_cob"], cont["total"])]
             cont["faixa_cob"] = cont["faixa_cob"].astype(str)
             cont["situacao"] = cont["situacao"].astype(str)
@@ -497,7 +512,7 @@ with aba_municipios:
                 color=alt.Color("situacao:N", scale=escala_sit, sort=rotulos_sit,
                                 legend=alt.Legend(title="Disposição inadequada", orient="top")),
                 order=alt.Order("ordem:Q"),
-                tooltip=["eixo", "situacao", alt.Tooltip("n:Q", title="municípios"), alt.Tooltip("pct:Q", title="%", format=".1f")])
+                tooltip=["eixo", "situacao", alt.Tooltip("n:Q", title="municípios"), alt.Tooltip("pct_txt:N", title="%")])
             textos_c = base_c.mark_text(fontSize=12).encode(
                 color=alt.condition(alt.datum.situacao == "100%", alt.value("#FFFFFF"), alt.value(COR_TEXTO)),
                 text="rotulo:N", order=alt.Order("ordem:Q"), x=alt.X("pct:Q", stack="zero", bandPosition=0.5))
@@ -510,7 +525,7 @@ with aba_municipios:
             if not pd.isna(rho):
                 frases.append(f"Correlação de Spearman = {formatar(rho, 2)} (associação, não causalidade).")
             st.caption(" ".join(frases) + " Um 0% de disposição inadequada com cobertura baixa é possível: o indicador "
-                       "usa a massa efetivamente coletada, e a maioria desses municípios declara rotas para aterro.")
+                       "usa a massa efetivamente coletada, e um 0% significa apenas que nenhuma rota declarada vai a lixão ou aterro controlado.")
     with st.container(border=True):
         st.markdown('<div class="passo">Dados por município</div>', unsafe_allow_html=True)
         st.subheader("Tabela de municípios")
@@ -543,13 +558,14 @@ with aba_metodo:
     st.markdown(
         "- **Fonte:** Ministério das Cidades, SINISA 2025 (ano de referência 2024), planilha de indicadores de "
         "resíduos sólidos urbanos.\n"
-        f"- **Cobertura:** {int(df_municipios['respondeu'].sum())} de {len(df_municipios)} municípios do país "
+        f"- **Cobertura:** {formatar(int(df_municipios['respondeu'].sum()), 0)} de {formatar(len(df_municipios), 0)} municípios do país "
         f"responderam ao módulo ({formatar(df_municipios['respondeu'].mean() * 100, 1)}%). Os demais ficam fora da análise.\n"
         "- **Média ponderada:** usa a população total do município como peso.\n"
         "- **Valores suspeitos:** percentuais acima de 100 e massa per capita acima de 3 kg/hab.dia são "
         "marcados no ETL e mantidos por padrão; use o filtro lateral para excluí-los.\n"
         "- **Zeros:** no IRS3002, 0% significa que o município não declarou nenhuma rota de coleta para lixão, vazadouro ou "
-        "aterro controlado; na maioria dos casos (94%) as rotas declaradas vão a aterro sanitário ou de inertes. Nos demais "
+        "aterro controlado; no Brasil, a grande maioria dos zeros vem de rotas a aterro sanitário ou de inertes (quadro "
+        "\"O que significa um 0%?\", na aba Panorama). Nos demais "
         "indicadores, 0 pode indicar ausência do serviço ou do envio da informação. Os dados são autodeclarados.\n"
         "- **Escopo:** os indicadores tratam de resíduos sólidos urbanos municipais, não de resíduos industriais "
         "nem da gestão ambiental de empresas.\n"
