@@ -11,6 +11,10 @@
 --   * Dimensões: municipio e indicador
 --   * Fato:      resultado_indicador (um valor por município x indicador x ano)
 --
+-- Tabelas de apoio (fora do esquema estrela):
+--   * destinacao_municipio  massa das rotas de coleta por classe de destino; reproduz o IRS3002
+--   * etl_meta              metadados da carga (impressão digital das entradas)
+--
 -- Observação de modelagem: em um esquema estrela as dimensões são mantidas
 -- desnormalizadas de propósito. Por isso a coluna "regiao" fica em municipio,
 -- embora dependa de "uf".
@@ -22,6 +26,8 @@
 PRAGMA foreign_keys = ON;
 
 -- Remoção na ordem inversa das dependências (fato primeiro, dimensões depois)
+DROP TABLE IF EXISTS etl_meta;
+DROP TABLE IF EXISTS destinacao_municipio;
 DROP TABLE IF EXISTS resultado_indicador;
 DROP TABLE IF EXISTS indicador;
 DROP TABLE IF EXISTS municipio;
@@ -81,8 +87,45 @@ CREATE TABLE resultado_indicador (
 
 
 -- -----------------------------------------------------------------------------
+-- destinacao_municipio: massa coletada nas rotas declaradas pelo município (SINISA,
+-- planilha de Manejo, aba de rotas; GTR1008), somada por classe do tipo de unidade de
+-- destino (GTR1011), mais a massa coletada e a recuperada do município (GTR1028 e
+-- GTR1029). Uma linha por município da dimensão, com zeros quando não há rota declarada.
+-- Massas em toneladas por ano.
+--
+-- Classes: inadequada = lixão, vazadouro ou aterro controlado; aterro_adequado = aterro
+-- sanitário ou de inertes; intermediaria = transbordo, triagem, compostagem,
+-- coprocessamento, áreas verdes (o destino final não é informado na rota).
+--
+-- O IRS3002 é, exatamente, massa_rota_inadequada / (massa_coletada - massa_recuperada) x 100.
+-- O ETL confere isso para todos os municípios. Logo, esta tabela explica o indicador a partir
+-- da mesma declaração: não é uma verificação independente.
+-- -----------------------------------------------------------------------------
+CREATE TABLE destinacao_municipio (
+    cod_ibge                    TEXT PRIMARY KEY,
+    massa_rota_inadequada       REAL NOT NULL CHECK (massa_rota_inadequada >= 0),
+    massa_rota_aterro_adequado  REAL NOT NULL CHECK (massa_rota_aterro_adequado >= 0),
+    massa_rota_intermediaria    REAL NOT NULL CHECK (massa_rota_intermediaria >= 0),
+    massa_coletada              REAL,                     -- GTR1028 (NULL se não informada)
+    massa_recuperada            REAL,                     -- GTR1029 (NULL se não informada)
+    FOREIGN KEY (cod_ibge) REFERENCES municipio (cod_ibge)
+);
+
+
+-- -----------------------------------------------------------------------------
+-- etl_meta: metadados da carga. 'hash_entradas' é a impressão digital das planilhas,
+-- do esquema e do ETL; o ETL a usa para pular a execução quando nada mudou.
+-- -----------------------------------------------------------------------------
+CREATE TABLE etl_meta (
+    chave  TEXT PRIMARY KEY,
+    valor  TEXT NOT NULL
+);
+
+
+-- -----------------------------------------------------------------------------
 -- Índices de apoio às consultas (filtro por UF e por indicador)
+-- A busca por cod_ibge já é atendida pelo índice da restrição UNIQUE
+-- (cod_ibge, codigo_indicador, ano_referencia), que começa por essa coluna.
 -- -----------------------------------------------------------------------------
 CREATE INDEX idx_municipio_uf          ON municipio (uf);
 CREATE INDEX idx_resultado_indicador   ON resultado_indicador (codigo_indicador);
-CREATE INDEX idx_resultado_municipio   ON resultado_indicador (cod_ibge);

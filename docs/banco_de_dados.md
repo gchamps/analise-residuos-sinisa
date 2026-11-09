@@ -59,6 +59,14 @@ Decisões de modelagem:
 
 Índices: `idx_municipio_uf`, `idx_resultado_indicador`, `idx_resultado_municipio`. O plano de execução de uma consulta por indicador usa o índice (`Bitmap Index Scan`, cerca de 1 ms para 4.854 linhas).
 
+### Tabelas de apoio (apenas no SQLite do dashboard)
+| Tabela | Conteúdo |
+|---|---|
+| `destinacao_municipio` | por município: massa das rotas de coleta declaradas, somada por classe de destino (lixão/aterro controlado, aterro sanitário ou de inertes, unidade intermediária), mais a massa coletada e a recuperada. Vem da planilha de Manejo (aba de rotas: GTR1008 e GTR1011). Reproduz o IRS3002: `massa_rota_inadequada / (massa_coletada - massa_recuperada) x 100`, com diferença máxima de 0,005 p.p. nos 4.854 municípios. O ETL confere isso e falha se divergir. |
+| `etl_meta` | impressão digital (hash) das planilhas, do esquema e do ETL; permite pular o ETL quando nada mudou. |
+
+**Divergência conhecida:** a camada PostgreSQL ainda não tem `destinacao_municipio` (sem servidor Postgres disponível para testar a mudança). O dump em `dados_tratados/postgres/` e os scripts em `sql/postgres/` refletem o modelo anterior, sem essa tabela.
+
 ## 3. Regras de limpeza (em SQL, `02_transformacao.sql`)
 1. **Código IBGE:** remove espaços e a parte decimal (`3548708.0` vira `3548708`); descarta linhas sem 7 dígitos; em duplicata, fica a primeira.
 2. **Texto:** `trim`; UF em maiúsculas; `respondeu` vira booleano (`Sim` = verdadeiro).
