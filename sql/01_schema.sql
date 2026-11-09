@@ -82,7 +82,8 @@ CREATE TABLE resultado_indicador (
 
 -- -----------------------------------------------------------------------------
 -- Índices de apoio às consultas (filtro por UF e por indicador)
+-- A busca por cod_ibge já é atendida pelo índice da restrição UNIQUE
+-- (cod_ibge, codigo_indicador, ano_referencia), que começa por essa coluna.
 -- -----------------------------------------------------------------------------
 CREATE INDEX idx_municipio_uf          ON municipio (uf);
 CREATE INDEX idx_resultado_indicador   ON resultado_indicador (codigo_indicador);
-CREATE INDEX idx_resultado_municipio   ON resultado_indicador (cod_ibge);

@@ -49,7 +49,8 @@ TODO_BRASIL = "Brasil (todas as UFs)"
 # Dados
 # -----------------------------------------------------------------------------
 @st.cache_data
-def carregar_dados(caminho):
+def carregar_dados(caminho, modificado_em):
+    """`modificado_em` entra na chave do cache: se o ETL regerar o banco, o app recarrega os dados."""
     conn = sqlite3.connect(caminho)
     try:
         resultados = pd.read_sql_query(
@@ -134,7 +135,7 @@ if not os.path.exists(CAMINHO_BANCO):
     st.stop()
 
 try:
-    df_resultados, df_municipios, df_catalogo = carregar_dados(CAMINHO_BANCO)
+    df_resultados, df_municipios, df_catalogo = carregar_dados(CAMINHO_BANCO, os.path.getmtime(CAMINHO_BANCO))
 except (sqlite3.OperationalError, pd.errors.DatabaseError):
     st.error("O banco de dados está desatualizado. Execute novamente: python scripts/etl_sqlite.py")
     st.stop()

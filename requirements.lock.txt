@@ -1,0 +1,9 @@
+# Versões exatas validadas (Python 3.12). Para reproduzir o ambiente: pip install -r requirements.lock.txt
+# A CI usa este arquivo. Regere com: pip freeze (após testar com versões novas).
+streamlit==1.67.0
+pandas==3.1.1
+numpy==2.5.4
+scipy==1.18.1
+altair==6.3.0
+openpyxl==3.1.5
+pytest==9.2.0
