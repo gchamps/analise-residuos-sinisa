@@ -26,8 +26,14 @@ def test_brasil_sem_excecoes():
     assert "Média ponderada 20,79%" in legendas and "Média ponderada 92,63%" in legendas
     # etapa 3: evidência de infraestrutura para os zeros
     assert "Dos 3.057 municípios com 0%" in texto
-    assert "665 (22%) sediam aterro sanitário em operação" in texto
-    assert "Nenhum zero contradiz a infraestrutura" in texto
+    assert "2.788 (91%) declararam enviar os resíduos a aterro sanitário ou de inertes" in texto
+    assert "188 (6%) declararam destino para só parte da massa" in texto
+    assert "81 (3%) não declararam nenhum destino" in texto
+    assert "Nenhum zero declara envio a lixão, vazadouro ou aterro controlado" in texto
+    assert "ela não comprova que o destino informado é o real" in texto       # limite da evidência sempre explícito
+    legendas_mapa = " ".join(c.value for c in app.caption)
+    assert "Atenção em RN, GO, SE: mais de 30% dos zeros não têm destino adequado declarado" in legendas_mapa
+    assert "AL, SC, ES, PE, RS, PB, SE, SP, mais de 90% dos municípios registram exatamente 0%, e 91%" in legendas_mapa
 
 
 def test_uf_selecionada_sem_excecoes():

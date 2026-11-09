@@ -82,19 +82,24 @@ CREATE TABLE resultado_indicador (
 
 
 -- -----------------------------------------------------------------------------
--- destinacao_municipio: unidades de disposição final EM OPERAÇÃO sediadas no
--- município (planilha SINISA de Infraestrutura - Destinação Final). Um registro por
--- município da dimensão, com zeros quando não sedia nenhuma unidade.
--- Uso: evidência para interpretar IRS3002 = 0. Sedia aterro sanitário em operação =
--- destinação adequada comprovada; não sedia unidade nenhuma = o zero não se confirma
--- (pode enviar a outro município ou não ter informado). Inadequada = lixão, vazadouro
--- ou aterro controlado (mesma definição do IRS3002).
+-- destinacao_municipio: para onde cada município de ORIGEM declarou enviar seus
+-- resíduos (SINISA, planilha de Destinação Final, aba de fluxos; GTR3222) e as massas
+-- coletada e recuperada (planilha de Manejo; GTR1028 e GTR1029). Uma linha por município
+-- da dimensão, com zeros quando não há fluxo declarado. Massas na unidade do SINISA
+-- (massa anual); enviada e coletada estão na mesma unidade.
+--
+-- Uso: interpretar IRS3002 = 0. O numerador do IRS3002 vem destes mesmos fluxos
+-- (massa enviada a lixão, vazadouro ou aterro controlado), então esta tabela explica o
+-- indicador; ela não é uma verificação independente da declaração do município.
+-- Inadequada = lixão, vazadouro ou aterro controlado (definição do IRS3002).
 -- -----------------------------------------------------------------------------
 CREATE TABLE destinacao_municipio (
-    cod_ibge                       TEXT    PRIMARY KEY,
-    unidades_inadequadas_operacao  INTEGER NOT NULL CHECK (unidades_inadequadas_operacao >= 0),
-    aterros_sanitarios_operacao    INTEGER NOT NULL CHECK (aterros_sanitarios_operacao >= 0),
-    aterros_inertes_operacao       INTEGER NOT NULL CHECK (aterros_inertes_operacao >= 0),
+    cod_ibge                    TEXT PRIMARY KEY,
+    massa_enviada_inadequada    REAL NOT NULL CHECK (massa_enviada_inadequada >= 0),
+    massa_enviada_sanitario     REAL NOT NULL CHECK (massa_enviada_sanitario >= 0),
+    massa_enviada_inertes       REAL NOT NULL CHECK (massa_enviada_inertes >= 0),
+    massa_coletada              REAL,                     -- GTR1028 (NULL se não informada)
+    massa_recuperada            REAL,                     -- GTR1029 (NULL se não informada)
     FOREIGN KEY (cod_ibge) REFERENCES municipio (cod_ibge)
 );
 

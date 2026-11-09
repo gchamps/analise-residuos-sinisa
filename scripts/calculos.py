@@ -112,28 +112,43 @@ def resumo_por_faixa(tabela, indicador="IRS3002"):
 
 
 CONSULTA_DESTINACAO = "SELECT * FROM destinacao_municipio"
-EVIDENCIA_CONFIRMADO = "0% confirmado"
-EVIDENCIA_NAO_VERIFICADO = "0% não verificado"
+EVIDENCIA_CONFIRMADO = "0% com destino adequado declarado"
+EVIDENCIA_PARCIAL = "0% com declaração parcial"
+EVIDENCIA_SEM_DESTINO = "0% sem destino declarado"
 EVIDENCIA_CONTRADICAO = "0% contraditório"
-ROTULOS_EVIDENCIA = [EVIDENCIA_CONFIRMADO, EVIDENCIA_NAO_VERIFICADO, EVIDENCIA_CONTRADICAO]
+ROTULOS_EVIDENCIA = [EVIDENCIA_CONFIRMADO, EVIDENCIA_PARCIAL, EVIDENCIA_SEM_DESTINO, EVIDENCIA_CONTRADICAO]
+LIMITE_COBERTURA_FLUXOS = 0.9    # fluxos a aterro sanitário / massa coletada líquida a partir da qual a declaração é "completa"
 
 
-def classificar_zeros(tabela, destinacao, indicador="IRS3002"):
-    """Classifica os municípios com `indicador` = 0 pela evidência de infraestrutura.
+def classificar_zeros(tabela, destinacao, indicador="IRS3002", limite_cobertura=LIMITE_COBERTURA_FLUXOS):
+    """Classifica os municípios com `indicador` = 0 pelos fluxos de destinação que o próprio município declarou.
 
-    * confirmado: sedia aterro sanitário em operação e nenhuma unidade inadequada (destinação adequada comprovada);
-    * contraditório: sedia lixão, vazadouro ou aterro controlado em operação (o 0% contradiz a infraestrutura);
-    * não verificado: não sedia unidade nenhuma ou só aterro de inertes. Pode enviar os resíduos a outro município
-      ou não ter informado: os dados do SINISA não permitem confirmar.
+    O numerador do IRS3002 é a massa enviada a lixão, vazadouro ou aterro controlado, somada dos fluxos
+    declarados. Logo, esta classificação explica o zero; ela NÃO é uma verificação independente, porque parte da
+    mesma declaração. Classes (a primeira que se aplica):
+
+    * contraditório: declara envio a lixão ou aterro controlado e ainda assim tem 0% (não ocorre nos dados de 2024);
+    * sem destino declarado: nenhum fluxo declarado; o 0% vem de um numerador vazio;
+    * destino adequado declarado: a massa enviada a aterro sanitário ou de inertes (os destinos que o IRS3002 não
+      considera inadequados) cobre ao menos `limite_cobertura` da massa coletada líquida (coletada - recuperada),
+      ou a massa líquida não foi informada;
+    * declaração parcial: há fluxo declarado, mas ele cobre menos da massa coletada líquida; o destino do
+      restante é desconhecido.
 
     Devolve uma Series alinhada a `tabela`, com NaN onde o valor não é zero.
     """
     info = tabela[["cod_ibge"]].merge(destinacao, on="cod_ibge", how="left")
-    inadequadas = info["unidades_inadequadas_operacao"].fillna(0).to_numpy() > 0
-    sanitarios = info["aterros_sanitarios_operacao"].fillna(0).to_numpy() > 0
-    classe = pd.Series(EVIDENCIA_NAO_VERIFICADO, index=tabela.index, dtype="object")
-    classe[sanitarios] = EVIDENCIA_CONFIRMADO
-    classe[inadequadas] = EVIDENCIA_CONTRADICAO
+    inadequada = info["massa_enviada_inadequada"].fillna(0).to_numpy()
+    sanitario = info["massa_enviada_sanitario"].fillna(0).to_numpy()
+    inertes = info["massa_enviada_inertes"].fillna(0).to_numpy()
+    liquida = (info["massa_coletada"] - info["massa_recuperada"].fillna(0)).to_numpy()
+    adequado = sanitario + inertes      # o IRS3002 só considera inadequados o lixão, o vazadouro e o aterro controlado
+    cobertura_ok = (liquida <= 0) | pd.isna(liquida) | (adequado >= limite_cobertura * liquida)
+
+    classe = pd.Series(EVIDENCIA_PARCIAL, index=tabela.index, dtype="object")
+    classe[(adequado > 0) & cobertura_ok] = EVIDENCIA_CONFIRMADO
+    classe[(sanitario + inertes + inadequada) == 0] = EVIDENCIA_SEM_DESTINO
+    classe[inadequada > 0] = EVIDENCIA_CONTRADICAO
     return classe.where(tabela[indicador] == 0)
 
 
@@ -141,7 +156,6 @@ def resumo_evidencia_zeros(tabela, destinacao, indicador="IRS3002"):
     """Contagem de zeros por classe de evidência, na ordem de ROTULOS_EVIDENCIA."""
     classes = classificar_zeros(tabela, destinacao, indicador).dropna()
     return classes.value_counts().reindex(ROTULOS_EVIDENCIA, fill_value=0)
-
 
 def formatar(valor, casas=2, sufixo=""):
     """Número no padrão brasileiro (vírgula decimal, ponto de milhar)."""
