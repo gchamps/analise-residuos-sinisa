@@ -347,7 +347,7 @@ with aba_panorama:
             textos_d = base_d.mark_text(fontSize=12).encode(
                 text="rotulo:N", order=alt.Order("ordem:Q"), x=alt.X("pct:Q", stack="zero", bandPosition=0.5),
                 color=alt.condition(alt.datum.situacao == "100%", alt.value("#FFFFFF"), alt.value(COR_TEXTO)))
-            st.altair_chart(estilizar((barras_d + textos_d).properties(height=48 * len(ordem_ind))))
+            st.altair_chart(estilizar((barras_d + textos_d).properties(height=44 * len(ordem_ind) + 90)))
             st.caption("Cada barra soma 100% dos municípios. Cinza: registraram 0%. Azul: registraram 100%. Areia: ficaram entre 1% e 99%. "
                        "No IRS3002, 0 significa que o município não declarou nenhuma rota de coleta para lixão, vazadouro ou aterro "
                        "controlado; nos demais indicadores, 0 pode indicar ausência do serviço ou da informação.")
@@ -384,14 +384,14 @@ with aba_panorama:
                 barras_e = base_e.mark_bar(size=24).encode(
                     color=alt.Color("evidencia_zero:N", sort=ordem_e,
                                     scale=alt.Scale(domain=ordem_e, range=["#1F5E4B", "#D9A441", "#8A8F98", "#B5451B"]),
-                                    legend=alt.Legend(title="Destino declarado", orient="top")),
+                                    legend=alt.Legend(title="Destino declarado", orient="top", columns=2, labelLimit=0, symbolLimit=0)),
                     order=alt.Order("ordem:Q"),
                     tooltip=["regiao", "evidencia_zero", alt.Tooltip("n:Q", title="municípios"),
                              alt.Tooltip("pct_txt:N", title="%")])
                 textos_e = base_e.mark_text(fontSize=12, color="#FFFFFF").encode(
                     text="rotulo:N", order=alt.Order("ordem:Q"),
                     x=alt.X("pct:Q", stack="zero", bandPosition=0.5))
-                st.altair_chart(estilizar((barras_e + textos_e).properties(height=40 * len(ordem_r))))
+                st.altair_chart(estilizar((barras_e + textos_e).properties(height=36 * len(ordem_r) + 130)))
                 st.caption("Fonte: rotas de coleta e tipo de unidade de destino da planilha de Manejo do SINISA, comparadas com a massa "
                            "coletada líquida (coletada menos recuperada). Aterro de inertes não é destino inadequado, como no IRS3002. "
                            "Transbordo, triagem e compostagem são etapas intermediárias: a rota não informa para onde vão os rejeitos.")
@@ -465,7 +465,8 @@ with aba_estados:
             cores = alt.Scale(domain=ordem, range=[COR_NEUTRA] + CORES_GRUPOS[:len(escolhidas)])
             base_cmp = alt.Chart(df_cmp).encode(
                 x=alt.X("indicador:N", sort=list(curtos_cmp.values()), title=None,
-                        axis=alt.Axis(grid=False, labelAngle=0, labelLimit=180, labelPadding=8)),
+                        axis=alt.Axis(grid=False, labelAngle=0, labelLimit=0, labelOverlap=False, labelPadding=8,
+                                       labelExpr="split(datum.label, ' ')")),
                 y=alt.Y("valor:Q", title="%", scale=alt.Scale(domain=[0, 108]),
                         axis=alt.Axis(grid=True, gridColor="#E6E1D4", gridDash=[2, 3], values=[0, 20, 40, 60, 80, 100])),
                 xOffset=alt.XOffset("grupo:N", sort=ordem))
@@ -473,7 +474,7 @@ with aba_estados:
                 color=alt.Color("grupo:N", scale=cores, sort=ordem, legend=alt.Legend(title=None, orient="top", direction="horizontal")),
                 tooltip=["grupo", "indicador", alt.Tooltip("rotulo:N", title="valor")])
             texto_cmp = base_cmp.mark_text(dy=-7, fontSize=10, color=COR_TEXTO).encode(text="rotulo:N")
-            st.altair_chart(estilizar((barras_cmp + texto_cmp).properties(height=360)))
+            st.altair_chart(estilizar((barras_cmp + texto_cmp).properties(height=420)))
             st.caption("Cinza é o Brasil, como referência. Na disposição inadequada, menor é melhor; nos demais indicadores, "
                        "maior é melhor. As cores dos estados só os distinguem.")
 
@@ -516,7 +517,7 @@ with aba_municipios:
             textos_c = base_c.mark_text(fontSize=12).encode(
                 color=alt.condition(alt.datum.situacao == "100%", alt.value("#FFFFFF"), alt.value(COR_TEXTO)),
                 text="rotulo:N", order=alt.Order("ordem:Q"), x=alt.X("pct:Q", stack="zero", bandPosition=0.5))
-            st.altair_chart(estilizar((barras_c + textos_c).properties(height=60 * len(ordem_eixo))))
+            st.altair_chart(estilizar((barras_c + textos_c).properties(height=52 * len(ordem_eixo) + 90)))
             frases = []
             p100 = cont[cont["situacao"] == "100%"].set_index("faixa_cob")["pct"]
             if "até 50%" in p100.index and "mais de 95%" in p100.index:
