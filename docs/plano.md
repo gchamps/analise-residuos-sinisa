@@ -9,7 +9,7 @@ Registro do plano de trabalho, do modelo de orquestração e do andamento. Atual
 | 0 | Auditoria de base | `tests/` de caracterização (números hoje publicados) e do ETL, `requirements-dev.txt`; auditada, achados médios corrigidos | feito |
 | 1 | Fundação | limites de versão + lock, CI (GitHub Actions), índice redundante no SQLite, cache do app sensível à data do banco | feito (CI ainda não rodou no GitHub) |
 | 2 | Refatoração | `scripts/calculos.py` (cálculos comuns a app, análise e planilha), `scripts/mapa.py`, `app.py` enxuto, `carregar_dados(excluir_sinalizados)` na análise, testes do módulo e do app inteiro (Streamlit AppTest) | feito, aguardando auditoria |
-| 3 | Zeros do IRS3002 | cruzar com a planilha de Destinação Final; separar "zero confirmado" de "zero não verificado" | pendente |
+| 3 | Zeros do IRS3002 | tabela `destinacao_municipio` no ETL (planilha de Destinação Final), `classificar_zeros` em `calculos.py`, quadro "Os zeros são reais?" no app. Resultado: de 3.057 zeros, 665 (22%) confirmados por aterro sanitário em operação, 2.392 não verificáveis, 0 contraditórios | feito, aguardando auditoria |
 | 4 | ETL e banco | execução incremental por hash, carga do staging mais limpa, destino do `.db` versionado, justificar limite de 3 kg/hab.dia | pendente |
 | 5 | Entrega | README, deploy, relatório com números atualizados | pendente |
 | 6 | Auditoria final | revisão independente; números do app, da planilha e do relatório batem | pendente |

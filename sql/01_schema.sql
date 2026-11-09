@@ -22,6 +22,7 @@
 PRAGMA foreign_keys = ON;
 
 -- Remoção na ordem inversa das dependências (fato primeiro, dimensões depois)
+DROP TABLE IF EXISTS destinacao_municipio;
 DROP TABLE IF EXISTS resultado_indicador;
 DROP TABLE IF EXISTS indicador;
 DROP TABLE IF EXISTS municipio;
@@ -77,6 +78,24 @@ CREATE TABLE resultado_indicador (
     FOREIGN KEY (cod_ibge)         REFERENCES municipio (cod_ibge),
     FOREIGN KEY (codigo_indicador) REFERENCES indicador (codigo),
     UNIQUE (cod_ibge, codigo_indicador, ano_referencia)
+);
+
+
+-- -----------------------------------------------------------------------------
+-- destinacao_municipio: unidades de disposição final EM OPERAÇÃO sediadas no
+-- município (planilha SINISA de Infraestrutura - Destinação Final). Um registro por
+-- município da dimensão, com zeros quando não sedia nenhuma unidade.
+-- Uso: evidência para interpretar IRS3002 = 0. Sedia aterro sanitário em operação =
+-- destinação adequada comprovada; não sedia unidade nenhuma = o zero não se confirma
+-- (pode enviar a outro município ou não ter informado). Inadequada = lixão, vazadouro
+-- ou aterro controlado (mesma definição do IRS3002).
+-- -----------------------------------------------------------------------------
+CREATE TABLE destinacao_municipio (
+    cod_ibge                       TEXT    PRIMARY KEY,
+    unidades_inadequadas_operacao  INTEGER NOT NULL CHECK (unidades_inadequadas_operacao >= 0),
+    aterros_sanitarios_operacao    INTEGER NOT NULL CHECK (aterros_sanitarios_operacao >= 0),
+    aterros_inertes_operacao       INTEGER NOT NULL CHECK (aterros_inertes_operacao >= 0),
+    FOREIGN KEY (cod_ibge) REFERENCES municipio (cod_ibge)
 );
 
 

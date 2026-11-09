@@ -28,6 +28,8 @@ import pandas as pd
 # -----------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CAMINHO_EXCEL = os.path.join(BASE_DIR, "dados_originais", "SINISA_RESIDUOS_Indicadores_2024.xlsx")
+CAMINHO_EXCEL_DESTINACAO = os.path.join(
+    BASE_DIR, "dados_originais", "SINISA_RESIDUOS_Informacoes_Formulario_Infraestrutura_Destinacao_Final_2024.xlsx")
 CAMINHO_SCHEMA = os.path.join(BASE_DIR, "sql", "01_schema.sql")
 CAMINHO_BANCO = os.path.join(BASE_DIR, "dados_tratados", "projeto_residuos.db")
 CAMINHO_CSV_MUNICIPIOS = os.path.join(BASE_DIR, "dados_tratados", "municipios.csv")
@@ -44,6 +46,10 @@ ANO_REFERENCIA = 2024
 LINHA_CODIGOS_INDICADORES = 10
 LINHA_CODIGOS_DEMAIS = 12
 PRIMEIRA_LINHA_DADOS = 13
+
+# Colunas da planilha de Destinação Final usadas como evidência
+COLUNA_TIPO_UNIDADE = "GTR3201*"      # tipo de unidade de disposição final
+COLUNA_EM_OPERACAO = "GTR3205*"       # esteve em operação no ano de referência?
 
 # Regras de sinalização de qualidade (os valores NÃO são apagados, só marcados)
 LIMITE_PERCENTUAL = 100.0          # indicador percentual não deveria passar de 100
@@ -124,6 +130,51 @@ def ler_planilha(caminho):
     return dados
 
 
+def ler_destinacao(caminho):
+    """Lê a planilha de Destinação Final: uma linha por unidade de disposição (município-sede da unidade)."""
+    if not os.path.exists(caminho):
+        sys.exit(f"Arquivo não encontrado: {caminho}")
+    bruto = pd.read_excel(caminho, header=None)
+    dados = bruto.iloc[PRIMEIRA_LINHA_DADOS:].copy()
+    dados.columns = [str(c).strip() for c in bruto.iloc[LINHA_CODIGOS_DEMAIS].tolist()]
+    return dados
+
+
+def classificar_unidade(tipo):
+    """'Lixão ou vazadouro' e 'Aterro controlado' são disposição inadequada (mesma regra do IRS3002)."""
+    texto = str(tipo).lower()
+    if "lix" in texto or "controlado" in texto:
+        return "inadequada"
+    if "sanit" in texto:
+        return "sanitario"
+    return "inertes"
+
+
+def preparar_destinacao(unidades, codigos_municipios):
+    """Conta, por município-sede, as unidades de disposição final EM OPERAÇÃO por tipo.
+
+    Todo município da dimensão aparece (com zeros quando não sedia nenhuma unidade). Serve de evidência
+    para interpretar o IRS3002 = 0: um município que sedia aterro sanitário em operação tem destinação
+    adequada comprovada; um que não sedia unidade alguma pode enviar os resíduos a outro município
+    ou simplesmente não ter informado, e o zero não se confirma.
+    """
+    exigir_colunas(unidades, ["Cod_IBGE", COLUNA_TIPO_UNIDADE, COLUNA_EM_OPERACAO])
+    base = unidades[unidades[COLUNA_TIPO_UNIDADE].notna()].copy()
+    base["cod_ibge"] = codigo_ibge_como_texto(base["Cod_IBGE"])
+    base = base.dropna(subset=["cod_ibge"])
+    base["em_operacao"] = base[COLUNA_EM_OPERACAO].astype(str).str.strip().str.lower().str.startswith("sim")
+    base["classe"] = base[COLUNA_TIPO_UNIDADE].map(classificar_unidade)
+    operando = base[base["em_operacao"]]
+    contagem = operando.pivot_table(index="cod_ibge", columns="classe", values="em_operacao", aggfunc="count")
+    saida = pd.DataFrame({"cod_ibge": list(codigos_municipios)}).set_index("cod_ibge")
+    for classe, coluna in [("inadequada", "unidades_inadequadas_operacao"),
+                           ("sanitario", "aterros_sanitarios_operacao"),
+                           ("inertes", "aterros_inertes_operacao")]:
+        serie = contagem[classe] if classe in contagem.columns else pd.Series(dtype="float64")
+        saida[coluna] = serie.reindex(saida.index).fillna(0).astype(int)
+    return saida.reset_index()
+
+
 def exigir_colunas(df, colunas):
     """Interrompe o ETL com mensagem clara se faltar alguma coluna esperada."""
     faltando = [c for c in colunas if c not in df.columns]
@@ -191,11 +242,12 @@ def criar_esquema(conn):
     conn.execute("PRAGMA foreign_keys = ON;")
 
 
-def carregar(conn, municipios, resultados):
+def carregar(conn, municipios, resultados, destinacao):
     catalogo = pd.DataFrame(INDICADORES, columns=["codigo", "nome", "unidade", "grupo", "definicao"])
     catalogo.to_sql("indicador", conn, if_exists="append", index=False)
     municipios.to_sql("municipio", conn, if_exists="append", index=False)
     resultados.to_sql("resultado_indicador", conn, if_exists="append", index=False)
+    destinacao.to_sql("destinacao_municipio", conn, if_exists="append", index=False)
     conn.commit()
 
 
@@ -265,6 +317,20 @@ def validar_carga(conn):
     else:
         print("  nenhum")
 
+    n_destinacao = escalar("SELECT COUNT(*) FROM destinacao_municipio")
+    if n_destinacao != n_municipios:
+        problemas.append(f"destinacao_municipio tem {n_destinacao} linhas, mas há {n_municipios} municípios.")
+    zeros = conn.execute(
+        "SELECT COUNT(*), "
+        "SUM(d.aterros_sanitarios_operacao > 0 AND d.unidades_inadequadas_operacao = 0), "
+        "SUM(d.unidades_inadequadas_operacao > 0) "
+        "FROM resultado_indicador r JOIN destinacao_municipio d USING (cod_ibge) "
+        "WHERE r.codigo_indicador = 'IRS3002' AND r.valor = 0"
+    ).fetchone()
+    print("IRS3002 = 0, evidência na planilha de Destinação Final:")
+    print(f"  zeros: {zeros[0]} | confirmados (sedia aterro sanitário em operação): {zeros[1]} | "
+          f"contradições (sedia lixão/aterro controlado em operação): {zeros[2]}")
+
     violacoes_fk = conn.execute("PRAGMA foreign_key_check").fetchall()
     if violacoes_fk:
         problemas.append(f"{len(violacoes_fk)} violações de chave estrangeira.")
@@ -281,13 +347,15 @@ def executar_etl():
 
     municipios = preparar_municipios(dados)
     resultados = preparar_resultados(dados)
+    print("Lendo a planilha de Destinação Final (evidência para o IRS3002 = 0)...")
+    destinacao = preparar_destinacao(ler_destinacao(CAMINHO_EXCEL_DESTINACAO), municipios["cod_ibge"])
 
     os.makedirs(os.path.dirname(CAMINHO_BANCO), exist_ok=True)
     conn = sqlite3.connect(CAMINHO_BANCO)
     try:
         conn.execute("PRAGMA foreign_keys = ON;")
         criar_esquema(conn)
-        carregar(conn, municipios, resultados)
+        carregar(conn, municipios, resultados, destinacao)
         print("Carga concluída. Validando...")
         problemas = validar_carga(conn)
         n_mun, n_res = exportar_csvs(conn)

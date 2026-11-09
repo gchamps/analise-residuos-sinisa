@@ -24,6 +24,10 @@ def test_brasil_sem_excecoes():
     assert "33,9%" in texto                      # média nacional de disposição inadequada
     legendas = " ".join(c.value for c in app.caption)
     assert "Média ponderada 20,79%" in legendas and "Média ponderada 92,63%" in legendas
+    # etapa 3: evidência de infraestrutura para os zeros
+    assert "Dos 3.057 municípios com 0%" in texto
+    assert "665 (22%) sediam aterro sanitário em operação" in texto
+    assert "Nenhum zero contradiz a infraestrutura" in texto
 
 
 def test_uf_selecionada_sem_excecoes():

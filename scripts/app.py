@@ -20,8 +20,9 @@ from scipy.stats import spearmanr
 _PASTA_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 if _PASTA_SCRIPTS not in sys.path:  # o Streamlit já costuma incluir a pasta; garante sem duplicar a cada interação
     sys.path.append(_PASTA_SCRIPTS)
-from calculos import (CONSULTA_RESULTADOS, INDICADORES, formatar, montar_tabela, ranking_uf, resumo_indicador,  # noqa: E402
-                      resumo_por_faixa)
+from calculos import (CONSULTA_DESTINACAO, CONSULTA_RESULTADOS, EVIDENCIA_CONFIRMADO, EVIDENCIA_CONTRADICAO,  # noqa: E402
+                      EVIDENCIA_NAO_VERIFICADO, INDICADORES, ROTULOS_EVIDENCIA, classificar_zeros, formatar,
+                      montar_tabela, ranking_uf, resumo_evidencia_zeros, resumo_indicador, resumo_por_faixa)
 from mapa import preparar_mapa  # noqa: E402
 
 st.set_page_config(page_title="MPV - Resíduos Sólidos", layout="wide")
@@ -55,9 +56,10 @@ def carregar_dados(caminho, modificado_em):
         resultados = pd.read_sql_query(CONSULTA_RESULTADOS, conn)
         municipios = pd.read_sql_query("SELECT uf, respondeu FROM municipio", conn)
         catalogo = pd.read_sql_query("SELECT codigo, nome, unidade, definicao FROM indicador ORDER BY codigo", conn)
+        destinacao = pd.read_sql_query(CONSULTA_DESTINACAO, conn)
     finally:
         conn.close()
-    return resultados, municipios, catalogo
+    return resultados, municipios, catalogo, destinacao
 
 
 # -----------------------------------------------------------------------------
@@ -68,7 +70,7 @@ if not os.path.exists(CAMINHO_BANCO):
     st.stop()
 
 try:
-    df_resultados, df_municipios, df_catalogo = carregar_dados(CAMINHO_BANCO, os.path.getmtime(CAMINHO_BANCO))
+    df_resultados, df_municipios, df_catalogo, df_destinacao = carregar_dados(CAMINHO_BANCO, os.path.getmtime(CAMINHO_BANCO))
 except (sqlite3.OperationalError, pd.errors.DatabaseError):
     st.error("O banco de dados está desatualizado. Execute novamente: python scripts/etl_sqlite.py")
     st.stop()
@@ -164,6 +166,11 @@ zeros_uf = tabela_brasil.dropna(subset=["IRS3002"]).groupby("uf")["IRS3002"].agg
     n="size", pct_zero=lambda v: (v == 0).mean() * 100)
 suspeitas = zeros_uf[(zeros_uf["n"] >= 10) & (zeros_uf["pct_zero"] > 90)].sort_values("pct_zero", ascending=False)
 suspeitas_txt = ", ".join(suspeitas.index) if len(suspeitas) else ""
+# Evidência de infraestrutura para os zeros do IRS3002 (planilha de Destinação Final)
+tabela_brasil = tabela_brasil.assign(evidencia_zero=classificar_zeros(tabela_brasil, df_destinacao))
+zeros_suspeitos = tabela_brasil[tabela_brasil["uf"].isin(suspeitas.index) & tabela_brasil["evidencia_zero"].notna()]
+pct_nao_verificado_suspeitas = (float((zeros_suspeitos["evidencia_zero"] == EVIDENCIA_NAO_VERIFICADO).mean() * 100)
+                                if len(zeros_suspeitos) else None)
 pior_regiao = por_regiao.sort_values("disposicao").iloc[-1]
 melhor_regiao = por_regiao.sort_values("disposicao").iloc[0]
 regiao_da_uf = None
@@ -262,8 +269,10 @@ with aba_panorama:
             longitude="lon:Q", latitude="lat:Q", text="uf:N")
         st.altair_chart(estilizar((mapa + rotulos_mapa).project(type="mercator").properties(height=480)))
         st.caption("Média simples do IRS3002 (disposição final inadequada) dos municípios de cada UF. Quanto mais escuro, pior."
-                   + (f" Atenção: em {suspeitas_txt}, mais de 90% dos municípios registram exatamente 0%. Esse padrão pode indicar "
-                      "informação não preenchida, e os valores baixos dessas UFs devem ser lidos com cautela." if suspeitas_txt else ""))
+                   + (f" Atenção: em {suspeitas_txt}, mais de 90% dos municípios registram exatamente 0%. Nessas UFs, "
+                      f"{formatar(pct_nao_verificado_suspeitas, 0, '%')} dos zeros não têm evidência de infraestrutura "
+                      "(o município não sedia aterro sanitário em operação); leia os valores baixos com cautela. "
+                      "Detalhes na aba Panorama, em Distribuição." if suspeitas_txt else ""))
 
     with st.container(border=True):
         st.markdown('<div class="passo">Porte dos municípios</div>', unsafe_allow_html=True)
@@ -329,7 +338,44 @@ with aba_panorama:
                 color=alt.condition(alt.datum.situacao == "100%", alt.value("#FFFFFF"), alt.value(COR_TEXTO)))
             st.altair_chart(estilizar((barras_d + textos_d).properties(height=48 * len(ordem_ind))))
             st.caption("Cada barra soma 100% dos municípios. Cinza: registraram 0%. Azul: registraram 100%. Areia: ficaram entre 1% e 99%. "
-                       "O valor 0 pode indicar ausência do serviço ou informação não preenchida.")
+                       "O valor 0 pode ser uma destinação adequada real ou informação não preenchida; o quadro abaixo separa os dois casos.")
+            # Evidência de infraestrutura para os zeros do IRS3002
+            evid = resumo_evidencia_zeros(tabela, df_destinacao)
+            total_z = int(evid.sum())
+            if total_z:
+                n_conf, n_nao, n_contra = (int(evid[r]) for r in ROTULOS_EVIDENCIA)
+                st.markdown(
+                    f"**Os zeros são reais?** Dos {formatar(total_z, 0)} municípios com 0% de disposição inadequada neste recorte, "
+                    f"{formatar(n_conf, 0)} ({formatar(n_conf / total_z * 100, 0, '%')}) sediam aterro sanitário em operação, "
+                    "evidência direta de destinação adequada. "
+                    f"{formatar(n_nao, 0)} ({formatar(n_nao / total_z * 100, 0, '%')}) não sediam aterro sanitário "
+                    "(nenhuma unidade ou só aterro de inertes): podem enviar os resíduos a outro município ou não ter informado, "
+                    "e o SINISA não permite confirmar. "
+                    + (f"{formatar(n_contra, 0)} contradizem a infraestrutura (sediam lixão ou aterro controlado em operação)."
+                       if n_contra else "Nenhum zero contradiz a infraestrutura: nenhum sedia lixão, vazadouro ou aterro controlado em operação."))
+                por_reg = (tabela_brasil.dropna(subset=["evidencia_zero"]).groupby(["regiao", "evidencia_zero"]).size()
+                           .rename("n").reset_index())
+                por_reg["pct"] = por_reg["n"] / por_reg.groupby("regiao")["n"].transform("sum") * 100
+                por_reg["rotulo"] = por_reg["pct"].map(lambda v: formatar(v, 0, "%") if v >= 6 else "")
+                ordem_r = por_reg.groupby("regiao")["n"].sum().sort_values(ascending=False).index.tolist()
+                ordem_e = [EVIDENCIA_CONFIRMADO, EVIDENCIA_NAO_VERIFICADO, EVIDENCIA_CONTRADICAO]
+                base_e = alt.Chart(por_reg).encode(
+                    y=alt.Y("regiao:N", sort=ordem_r, title=None, axis=alt.Axis(labelPadding=6)),
+                    x=alt.X("pct:Q", title="% dos municípios com 0% na região (Brasil)", scale=alt.Scale(domain=[0, 100])))
+                barras_e = base_e.mark_bar(size=24).encode(
+                    color=alt.Color("evidencia_zero:N", sort=ordem_e,
+                                    scale=alt.Scale(domain=ordem_e, range=["#1F5E4B", "#D9A441", "#B5451B"]),
+                                    legend=alt.Legend(title="Evidência", orient="top")),
+                    order=alt.Order("evidencia_zero:N", sort="ascending"),
+                    tooltip=["regiao", "evidencia_zero", alt.Tooltip("n:Q", title="municípios"),
+                             alt.Tooltip("pct:Q", title="%", format=".1f")])
+                textos_e = base_e.mark_text(fontSize=12, color="#FFFFFF").encode(
+                    text="rotulo:N", order=alt.Order("evidencia_zero:N", sort="ascending"),
+                    x=alt.X("pct:Q", stack="zero", bandPosition=0.5))
+                st.altair_chart(estilizar((barras_e + textos_e).properties(height=40 * len(ordem_r))))
+                st.caption("Fonte da evidência: planilha de Destinação Final do SINISA (unidades de disposição final em operação "
+                           "sediadas no município). Sediar aterro sanitário comprova destinação adequada; não sediar nada "
+                           "apenas deixa o zero sem comprovação.")
         with st.expander("Ver tabela estatística completa"):
             unidade_de = dict(zip(df_catalogo["codigo"], df_catalogo["unidade"]))
             linhas = []

@@ -111,6 +111,38 @@ def resumo_por_faixa(tabela, indicador="IRS3002"):
             .agg(municipios=(indicador, "size"), disposicao=(indicador, "mean")).reset_index())
 
 
+CONSULTA_DESTINACAO = "SELECT * FROM destinacao_municipio"
+EVIDENCIA_CONFIRMADO = "0% confirmado"
+EVIDENCIA_NAO_VERIFICADO = "0% não verificado"
+EVIDENCIA_CONTRADICAO = "0% contraditório"
+ROTULOS_EVIDENCIA = [EVIDENCIA_CONFIRMADO, EVIDENCIA_NAO_VERIFICADO, EVIDENCIA_CONTRADICAO]
+
+
+def classificar_zeros(tabela, destinacao, indicador="IRS3002"):
+    """Classifica os municípios com `indicador` = 0 pela evidência de infraestrutura.
+
+    * confirmado: sedia aterro sanitário em operação e nenhuma unidade inadequada (destinação adequada comprovada);
+    * contraditório: sedia lixão, vazadouro ou aterro controlado em operação (o 0% contradiz a infraestrutura);
+    * não verificado: não sedia unidade nenhuma ou só aterro de inertes. Pode enviar os resíduos a outro município
+      ou não ter informado: os dados do SINISA não permitem confirmar.
+
+    Devolve uma Series alinhada a `tabela`, com NaN onde o valor não é zero.
+    """
+    info = tabela[["cod_ibge"]].merge(destinacao, on="cod_ibge", how="left")
+    inadequadas = info["unidades_inadequadas_operacao"].fillna(0).to_numpy() > 0
+    sanitarios = info["aterros_sanitarios_operacao"].fillna(0).to_numpy() > 0
+    classe = pd.Series(EVIDENCIA_NAO_VERIFICADO, index=tabela.index, dtype="object")
+    classe[sanitarios] = EVIDENCIA_CONFIRMADO
+    classe[inadequadas] = EVIDENCIA_CONTRADICAO
+    return classe.where(tabela[indicador] == 0)
+
+
+def resumo_evidencia_zeros(tabela, destinacao, indicador="IRS3002"):
+    """Contagem de zeros por classe de evidência, na ordem de ROTULOS_EVIDENCIA."""
+    classes = classificar_zeros(tabela, destinacao, indicador).dropna()
+    return classes.value_counts().reindex(ROTULOS_EVIDENCIA, fill_value=0)
+
+
 def formatar(valor, casas=2, sufixo=""):
     """Número no padrão brasileiro (vírgula decimal, ponto de milhar)."""
     if valor is None or pd.isna(valor):
