@@ -1,6 +1,6 @@
 # Roteiro falado (para ler na apresentação)
 
-Disciplina: **Administração de Banco de Dados**. Duração: cerca de 13 minutos falando, mais as pausas da demonstração.
+Disciplina: **Administração de Banco de Dados**. Duração: cerca de 14 minutos falando, mais as pausas da demonstração.
 Linhas entre colchetes, como **[DEMO 4]**, indicam o passo do `roteiro_pratico.md`. Não leia os colchetes em voz alta.
 Dica: fale devagar, com frases curtas, e olhe para o professor entre uma frase e outra.
 
@@ -106,13 +106,21 @@ Se sobrar tempo, mostrar a planilha: "Esta é a planilha, feita a partir dos mes
 
 ---
 
-## 6. Administração: segurança e backup (cerca de 1 minuto)
+## 6. Administração: segurança, armazenamento e backup (cerca de 2 minutos)
 
 **[DEMO 9: bloco 8]**
 
 "Na parte de administração, criamos um **usuário só de leitura**, o `leitor_sinisa`, com `GRANT SELECT`. Quem só consulta, como o dashboard, não precisa alterar dados. Vejam: ele consegue ler, mas ao tentar apagar, o banco **nega a permissão**."
 
-**[DEMO 10: backup]**
+**[DEMO 10: bloco 9]**
+
+"Sobre o **armazenamento físico**. No PostgreSQL, os dados ficam em arquivos dentro de uma **pasta de dados**. Cada tabela é um arquivo, gravado em **páginas de 8 quilobytes**. E um **tablespace** é o que liga tabelas e índices a um local do disco.
+
+Neste projeto, **nós não criamos um tablespace próprio**. O banco é pequeno, uns 13 megabytes, e fica todo no tablespace padrão, o `pg_default`. O comando `\db` mostra só os dois que o PostgreSQL já traz, e a consulta mostra que todas as nossas tabelas e índices estão no `pg_default`.
+
+Em um banco grande, a ideia seria **separar por disco**: as tabelas maiores em um disco, os índices em um disco mais rápido, ou dados antigos em um disco mais barato. Para isso, cria-se o tablespace apontando para uma pasta vazia e move-se o objeto, com `CREATE TABLESPACE` e `ALTER INDEX ... SET TABLESPACE`. Esse exemplo está no fim do script, só como comentário, sem executar."
+
+**[DEMO 11: backup]**
 
 "Para **backup**, usamos o `pg_dump`. E temos um script que **restaura** o banco inteiro a partir desse dump em poucos segundos. É assim que se reconstrói o banco do zero."
 
@@ -122,7 +130,7 @@ Se sobrar tempo, mostrar a planilha: "Esta é a planilha, feita a partir dos mes
 
 "Para fechar, resumindo o que aplicamos da matéria: **modelagem dimensional**, **tipos de dados** e **restrições de integridade**, **schemas**, **ETL com carga em lote**, **transações**, **índices e plano de execução**, **views**, **consultas com função de janela**, **usuários e privilégios**, e **backup e restauração**.
 
-Como limitação: o servidor local está configurado só para estudo, sem senha e aceitando apenas conexões da própria máquina. Em produção usaríamos autenticação e permissões mais restritas.
+Como limitação: o servidor local está configurado só para estudo, sem senha e aceitando apenas conexões da própria máquina. Em produção usaríamos autenticação e permissões mais restritas. Também não aplicamos particionamento, tablespaces separados nem backup físico, porque o volume de dados é pequeno.
 
 Obrigado. Fico à disposição para perguntas."
 
@@ -165,3 +173,52 @@ Obrigado. Fico à disposição para perguntas."
 
 **O que não está no PostgreSQL?**
 "Duas tabelas de apoio que criamos depois, uma de destinação dos resíduos e outra de controle do ETL, existem só no SQLite. A camada PostgreSQL tem o modelo principal, as views e o usuário de leitura."
+
+**Vocês usaram tablespace?**
+"Não criamos um próprio. O banco é pequeno e fica todo no padrão, o `pg_default`. Mostrei isso na consulta. Em um banco grande, usaríamos tablespaces para separar tabelas e índices em discos diferentes, por desempenho ou custo."
+
+**Por que não usaram?**
+"Porque o ganho aparece com volume e com discos diferentes. Aqui são 13 megabytes em uma máquina só. Criar tablespace só para mostrar seria complicar sem benefício."
+
+**O que é um tablespace, em uma frase?**
+"É um local no disco onde o PostgreSQL guarda os arquivos de tabelas e índices, escolhido pelo administrador."
+
+**Onde ficam fisicamente os dados?**
+"Em uma pasta de dados, o `data_directory`. Cada tabela e índice é um arquivo, em páginas de 8 quilobytes. A consulta do bloco 9 mostra o caminho do arquivo da tabela fato."
+
+**O que garante que um dado confirmado não se perde se o computador cair?**
+"O log de transações, o WAL: o PostgreSQL grava a mudança no log antes de gravar nos arquivos de dados. É padrão e não precisamos configurar. Aparece no log do servidor como os *checkpoints*."
+
+**E o VACUUM?**
+"O PostgreSQL mantém versões das linhas (MVCC) e o autovacuum limpa as antigas, ligado por padrão. O que nós rodamos, na carga, foi o `ANALYZE`, para atualizar as estatísticas do otimizador."
+
+**Qual o nível de isolamento das transações?**
+"Usamos o padrão do PostgreSQL, o `READ COMMITTED`. Não configuramos outro, porque a carga roda sozinha e não há concorrência."
+
+**Que tipo de backup vocês fizeram?**
+"Backup **lógico**, com o `pg_dump`, que gera os comandos SQL para recriar o banco. Não fizemos backup **físico**, com cópia dos arquivos e arquivamento do WAL, que permite recuperar até um instante no tempo. Para este tamanho, o lógico basta."
+
+**Como é feita a autenticação?**
+"O servidor local usa o método `trust` no arquivo `pg_hba.conf`, aceitando só conexões da própria máquina, sem senha. É de estudo. Em produção, usaríamos senha ou certificado e restringiríamos por usuário."
+
+---
+
+# Conceitos de administração: o que aplicamos, o que só explicamos e o que não aplicamos
+
+Use esta tabela para não dizer que fez algo que não fez. Se o professor perguntar, responda pela coluna certa.
+
+| Conceito | Situação | Como falar |
+|---|---|---|
+| Modelagem dimensional, tipos, `PK`, `FK`, `UNIQUE`, `CHECK`, `NOT NULL` | **Aplicamos** | "Está no esquema; mostrei na tabela fato." |
+| Schemas | **Aplicamos** | "`staging` e `sinisa`." |
+| Índices e `EXPLAIN ANALYZE` | **Aplicamos** | "Três índices; o plano usa o do indicador." |
+| Views e funções de janela | **Aplicamos** | "Três views e `rank() OVER`." |
+| Transações | **Aplicamos** | "Carga numa transação; `BEGIN`/`ROLLBACK` nos testes." |
+| Usuários e privilégios | **Aplicamos** | "Papel `leitor_sinisa` com `GRANT SELECT`." |
+| Backup lógico (`pg_dump`) e restauração | **Aplicamos** | "Dump versionado e script que restaura." |
+| `ANALYZE` e estatísticas | **Aplicamos** | "Rodado ao final da carga." |
+| Tablespaces | **Só explicamos** | "Tudo no `pg_default`; mostrei onde ficam os arquivos." |
+| Páginas de 8 KB, WAL, MVCC, autovacuum, isolamento | **Padrão do PostgreSQL, só explicamos** | "Funcionam por padrão; não configuramos." |
+| `pg_hba.conf` (autenticação) | **Só explicamos** | "`trust` só em localhost, por ser banco de estudo." |
+| Particionamento, replicação, alta disponibilidade | **Não aplicamos** | "Volume pequeno; seria evolução futura." |
+| Backup físico e recuperação em ponto no tempo | **Não aplicamos** | "Para este tamanho, o backup lógico basta." |

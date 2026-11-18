@@ -45,7 +45,7 @@ winget install --id Microsoft.VCRedist.2015+.x64 -e
 
 Deixe abertas, antes de começar: (1) o PowerShell já preparado, (2) o navegador em `https://github.com/gchamps/analise-residuos-sinisa`, (3) o Excel com `resultados\Analise_Estatistica_Residuos.xlsx` (opcional).
 
-## Sequência da demonstração (14 minutos)
+## Sequência da demonstração (15 minutos)
 
 | # | Tempo | O que abrir ou rodar | O que apontar (uma frase) |
 |---|---|---|---|
@@ -58,9 +58,10 @@ Deixe abertas, antes de começar: (1) o PowerShell já preparado, (2) o navegado
 | 7 | 1 min | Mesmo script, bloco **5** | "O banco recusa dado inválido: valor negativo, município que não existe, resultado repetido." |
 | 8 | 2 min | Mesmo script, blocos **6** e **7** | "A view junta as tabelas e as estatísticas por UF saem do banco. O plano de execução usa o índice." |
 | 9 | 1 min | Mesmo script, bloco **8** | "O usuário `leitor_sinisa` só consulta; tentar apagar é negado." |
-| 10 | 1 min | Backup (comando abaixo) e, se sobrar tempo, a planilha Excel (abas `Descritiva`, `Ranking_UF`) | "O banco se reconstrói a partir do dump, e a planilha usa os mesmos dados." |
+| 10 | 1 min | Mesmo script, bloco **9** | "Os dados são arquivos numa pasta, em páginas de 8 KB. Tablespace liga tabelas e índices a um local do disco. Não criamos um próprio: está tudo no padrão." |
+| 11 | 1 min | Backup (comando abaixo) e, se sobrar tempo, a planilha Excel (abas `Descritiva`, `Ranking_UF`) | "O banco se reconstrói a partir do dump, e a planilha usa os mesmos dados." |
 
-Comando do backup (passo 10):
+Comando do backup (passo 11):
 
 ```powershell
 pg_dump -h localhost -p 5433 -U postgres -n sinisa -f "$env:TEMP\backup_sinisa.sql" residuos_sinisa
@@ -84,6 +85,7 @@ dir "$env:TEMP\backup_sinisa.sql"
 | Views | `vw_municipio_indicadores`, `vw_resumo_uf`, `vw_resumo_regiao` |
 | Consultas avançadas | Função de janela (`rank() OVER`), `percentile_cont` (mediana), `FILTER` |
 | Usuários e privilégios | Papel `leitor_sinisa` com `GRANT SELECT` |
+| Armazenamento físico e tablespaces | **Não criamos tablespace próprio**: tudo no `pg_default`. O bloco 9 mostra isso, o arquivo de cada tabela e o tamanho do banco. Ao falar, diga "só explicamos", nunca "aplicamos". |
 | Backup e restauração | `pg_dump` e `scripts/postgres_portatil.ps1 restaurar` |
 | Documentação do banco | `COMMENT ON` nas tabelas e `docs/banco_de_dados.md` |
 | Qualidade e validação dos dados | `sql/postgres/04_validacao.sql` e comparação com o SQLite |

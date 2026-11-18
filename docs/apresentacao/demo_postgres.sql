@@ -89,5 +89,32 @@ SELECT avg(valor) FROM sinisa.resultado_indicador WHERE codigo_indicador = 'IRS3
 SELECT count(*) AS leitura_permitida FROM sinisa.municipio;
 DELETE FROM sinisa.municipio;
 \c residuos_sinisa postgres
+\prompt 'Enter para continuar...' pausa
+
+\echo
+\echo '=== 9. ARMAZENAMENTO FISICO: onde os dados ficam e o que e um tablespace ==='
+\echo '-- Tablespaces existentes: so os dois que o PostgreSQL ja cria (nos nao criamos nenhum)'
+\db
+\echo '-- Tablespace de cada tabela e indice do projeto: todos no padrao (pg_default)'
+SELECT c.relname AS objeto,
+       CASE c.relkind WHEN 'r' THEN 'tabela' ELSE 'indice' END AS tipo,
+       coalesce(t.spcname, 'pg_default') AS tablespace
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace
+WHERE n.nspname = 'sinisa' AND c.relkind IN ('r', 'i')
+ORDER BY c.relkind DESC, c.relname;
+\echo '-- Cada tabela e um arquivo dentro da pasta de dados, gravado em paginas de 8 KB'
+SELECT pg_relation_filepath('sinisa.resultado_indicador') AS arquivo_da_tabela_fato,
+       current_setting('data_directory')                 AS pasta_de_dados,
+       current_setting('block_size')                     AS bytes_por_pagina;
+\echo '-- Quanto espaco o banco ocupa'
+SELECT pg_size_pretty(pg_database_size('residuos_sinisa'))             AS banco_inteiro,
+       pg_size_pretty(pg_table_size('sinisa.resultado_indicador'))     AS tabela_fato,
+       pg_size_pretty(pg_indexes_size('sinisa.resultado_indicador'))   AS indices_da_fato,
+       pg_size_pretty(pg_total_relation_size('staging.stg_planilha'))  AS staging;
+-- Se fosse um banco grande, o passo seguinte seria (NAO executamos aqui):
+--   CREATE TABLESPACE ts_rapido LOCATION 'D:/pgdados/rapido';      -- pasta vazia, em outro disco
+--   ALTER INDEX sinisa.idx_resultado_indicador SET TABLESPACE ts_rapido;
 \echo
 \echo '=== Fim da demonstracao ==='
