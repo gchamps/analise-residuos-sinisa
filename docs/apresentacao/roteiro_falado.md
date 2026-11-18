@@ -1,6 +1,6 @@
 # Roteiro falado (para ler na apresentação)
 
-Disciplina: **Administração de Banco de Dados**. Duração: cerca de 14 minutos falando, mais as pausas da demonstração.
+Disciplina: **Administração de Banco de Dados**. Duração: cerca de 15 minutos falando, mais as pausas da demonstração.
 Linhas entre colchetes, como **[DEMO 4]**, indicam o passo do `roteiro_pratico.md`. Não leia os colchetes em voz alta.
 Dica: fale devagar, com frases curtas, e olhe para o professor entre uma frase e outra.
 
@@ -126,7 +126,17 @@ Em um banco grande, a ideia seria **separar por disco**: as tabelas maiores em u
 
 ---
 
-## 7. Fechamento (cerca de 1 minuto)
+## 7. Dashboard (cerca de 1 minuto)
+
+**[DEMO 12: navegador em localhost:8501, já aberto]**
+
+"Para terminar a parte prática, o resultado que chega ao usuário: este é o **dashboard** que lê esses dados. Foi feito em **Python, com Streamlit**, e consome uma **cópia do banco em SQLite**, porque o serviço de hospedagem não alcança um PostgreSQL local.
+
+Na primeira tela estão os principais números, como a média nacional de disposição inadequada e a cobertura da coleta. O mapa mostra a disposição inadequada por estado. Na aba Estados está o ranking com a média simples e a ponderada, que são as mesmas estatísticas das views que mostrei no banco. E na aba Método estão as definições dos indicadores, que vêm da tabela `indicador`."
+
+---
+
+## 8. Fechamento (cerca de 1 minuto)
 
 "Para fechar, resumindo o que aplicamos da matéria: **modelagem dimensional**, **tipos de dados** e **restrições de integridade**, **schemas**, **ETL com carga em lote**, **transações**, **índices e plano de execução**, **views**, **consultas com função de janela**, **usuários e privilégios**, e **backup e restauração**.
 

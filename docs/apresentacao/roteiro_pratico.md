@@ -17,7 +17,7 @@ Disciplina: **Administração de Banco de Dados**. Tempo: 10 a 15 minutos. O pro
 Siga o arquivo **`passo_a_passo_gabriel.md`** (nesta mesma pasta). Ele leva o notebook do zero até o banco restaurado e termina com a conferência **TUDO PRONTO**. Faça isso **antes**, não na hora.
 
 Deixe abertos, antes de começar: (1) o PowerShell já preparado (passo 8 do guia), (2) o navegador em `https://github.com/gchamps/analise-residuos-sinisa`, (3) o Excel com `resultados\Analise_Estatistica_Residuos.xlsx` (opcional).
-## Sequência da demonstração (15 minutos)
+## Sequência da demonstração (16 minutos)
 
 | # | Tempo | O que abrir ou rodar | O que apontar (uma frase) |
 |---|---|---|---|
@@ -39,6 +39,10 @@ Comando do backup (passo 11):
 pg_dump -h localhost -p 5433 -U postgres -n sinisa -f "$env:TEMP\backup_sinisa.sql" residuos_sinisa
 dir "$env:TEMP\backup_sinisa.sql"
 ```
+
+| 12 | 1 min | Navegador: `http://localhost:8501` (dashboard já aberto antes) | "Este é o resultado para o usuário: lê o banco (uma cópia em SQLite). Mapa, ranking por estado e, na aba Método, as definições que vêm da tabela `indicador`." |
+
+Se o tempo apertar, corte o passo 10 (tablespaces) e encurte o 12.
 
 **Como usar o script `demo_postgres.sql`:** ele para entre os blocos esperando **Enter**. Fale, aperte Enter e avance. Se preferir rodar bloco a bloco, abra o arquivo e copie as consultas.
 
