@@ -5,8 +5,21 @@ Alguns passos abrem uma janela pedindo permissão de administrador: clique em **
 
 Copie cada bloco, cole no PowerShell e aperte Enter. Depois de cada passo, confira a linha **Esperado**.
 
----
+> **Atalho: deixar o Claude Code fazer por você.** Abra o Claude Code em qualquer pasta e cole o texto abaixo. Ele faz os passos 1 a 8 e te avisa quando precisar de você. **Fique na frente do computador:** os passos 2 e 3 abrem a janela de administrador, e só você pode clicar em **Sim**.
+>
+> ```text
+> Estou preparando este notebook (Windows) para uma apresentação de Administração de Banco de Dados. Use o PowerShell e me peça confirmação antes de cada instalação. Faça:
+>
+> 1. Se a pasta Documentos\analise-residuos-sinisa não existir, clone https://github.com/gchamps/analise-residuos-sinisa.git dentro de Documentos. Se existir, entre nela e rode git pull. Se o arquivo docs/apresentacao/passo_a_passo_gabriel.md não existir, rode git fetch e git checkout docs/apresentacao-tablespaces.
+> 2. Leia docs/apresentacao/passo_a_passo_gabriel.md e execute por mim os passos 1 a 8, na ordem. Instale Git e o Visual C++ (winget) só se faltarem. Quando aparecer a janela de administrador, me avise para eu clicar em Sim.
+> 3. ATENÇÃO no passo 6: NÃO rode o comando "iniciar" do postgres_portatil.ps1, porque ele trava quando a saída está sendo capturada. Em vez disso, rode ". .\docs\apresentacao\preparar_ambiente.ps1", que liga o servidor sem travar. Nesse momento ele vai mostrar [FALTA] no banco restaurado, e isso é esperado.
+> 4. Depois do passo 7 (restaurar), rode ". .\docs\apresentacao\preparar_ambiente.ps1" de novo e me mostre o resultado. Preciso ver TUDO PRONTO.
+> 5. Não altere nenhum arquivo do projeto e não faça commit nem push.
+> ```
+>
+> Quando ele terminar, **confirme você mesmo** abrindo um PowerShell novo e fazendo a rotina "No dia da apresentação" (mais abaixo): precisa aparecer **TUDO PRONTO**.
 
+---
 ## Passo 1: abrir o PowerShell e liberar scripts
 
 Menu Iniciar, digite **PowerShell**, abra o **Windows PowerShell** (não precisa ser administrador). Cole:
@@ -118,5 +131,7 @@ psql -h localhost -p 5433 -U postgres -d residuos_sinisa -f docs/apresentacao/de
 | `psql` não reconhecido | Cole o passo 8 de novo (ele configura o caminho do `psql` nesta janela) |
 | Letras quebradas na tela | Cole o passo 8 de novo na mesma janela |
 | Quer recomeçar o banco do zero | Passo 7 (leva 2 segundos) |
+
+Se algum passo travar e você não entender o motivo, **cole o erro no Claude Code** e peça para ele resolver, apontando para este arquivo.
 
 Se **nada** funcionar a tempo, tudo bem: o professor aceitou apresentar sem o banco rodando. Nesse caso, o roteiro tem um **Plano B** que usa só o navegador.
