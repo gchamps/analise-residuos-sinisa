@@ -12,40 +12,12 @@ Disciplina: **Administração de Banco de Dados**. Tempo: 10 a 15 minutos. O pro
 | Integridade, validação, usuário só de leitura, backup | Que o dashboard lê uma cópia em SQLite | Regressão, correlação, testes estatísticos |
 | Consultas e plano de execução (índice) | | |
 
-## Antes da apresentação (faça no notebook do Gabriel, **hoje, não na hora**)
+## Antes da apresentação
 
-Tempo: 5 a 10 minutos, mais o download (cerca de 320 MB, uma única vez). Abra o PowerShell na pasta do projeto.
+Siga o arquivo **`passo_a_passo_gabriel.md`** (nesta mesma pasta). Ele leva o notebook do zero até o banco restaurado e termina com a conferência **TUDO PRONTO**. Faça isso **antes**, não na hora.
 
-```powershell
-git clone https://github.com/gchamps/analise-residuos-sinisa.git   # se já tem a pasta: git pull
-cd analise-residuos-sinisa
-powershell -ExecutionPolicy Bypass -File .\scripts\postgres_portatil.ps1 instalar
-powershell -ExecutionPolicy Bypass -File .\scripts\postgres_portatil.ps1 iniciar
-powershell -ExecutionPolicy Bypass -File .\scripts\postgres_portatil.ps1 restaurar
-```
-
-Esperado: "Instalado", servidor iniciado, "Banco restaurado". Depois, na mesma janela:
-
-```powershell
-chcp 65001
-$env:PGCLIENTENCODING = "UTF8"
-$env:Path = "$env:USERPROFILE\tools\pg\pgsql\bin;" + $env:Path
-psql -h localhost -p 5433 -U postgres -d residuos_sinisa -c "SELECT count(*) FROM sinisa.municipio;"
-```
-
-Esperado: **5570**. Se apareceu, está pronto.
-
-**Se der erro no `instalar`/`iniciar` e nenhuma mensagem aparecer** (no meu teste foi exatamente isso), falta o *Visual C++ Redistributable*. Instale e repita o `instalar`:
-
-```powershell
-winget install --id Microsoft.VCRedist.2015+.x64 -e
-```
-
-(aceite a janela de administrador). Se `git` ou `winget` não existirem no notebook, vá direto ao **Plano B** abaixo.
-
-Deixe abertas, antes de começar: (1) o PowerShell já preparado, (2) o navegador em `https://github.com/gchamps/analise-residuos-sinisa`, (3) o Excel com `resultados\Analise_Estatistica_Residuos.xlsx` (opcional).
-
-## Sequência da demonstração (14 minutos)
+Deixe abertos, antes de começar: (1) o PowerShell já preparado (passo 8 do guia), (2) o navegador em `https://github.com/gchamps/analise-residuos-sinisa`, (3) o Excel com `resultados\Analise_Estatistica_Residuos.xlsx` (opcional).
+## Sequência da demonstração (16 minutos)
 
 | # | Tempo | O que abrir ou rodar | O que apontar (uma frase) |
 |---|---|---|---|
@@ -58,14 +30,19 @@ Deixe abertas, antes de começar: (1) o PowerShell já preparado, (2) o navegado
 | 7 | 1 min | Mesmo script, bloco **5** | "O banco recusa dado inválido: valor negativo, município que não existe, resultado repetido." |
 | 8 | 2 min | Mesmo script, blocos **6** e **7** | "A view junta as tabelas e as estatísticas por UF saem do banco. O plano de execução usa o índice." |
 | 9 | 1 min | Mesmo script, bloco **8** | "O usuário `leitor_sinisa` só consulta; tentar apagar é negado." |
-| 10 | 1 min | Backup (comando abaixo) e, se sobrar tempo, a planilha Excel (abas `Descritiva`, `Ranking_UF`) | "O banco se reconstrói a partir do dump, e a planilha usa os mesmos dados." |
+| 10 | 1 min | Mesmo script, bloco **9** | "Os dados são arquivos numa pasta, em páginas de 8 KB. Tablespace liga tabelas e índices a um local do disco. Não criamos um próprio: está tudo no padrão." |
+| 11 | 1 min | Backup (comando abaixo) e, se sobrar tempo, a planilha Excel (abas `Descritiva`, `Ranking_UF`) | "O banco se reconstrói a partir do dump, e a planilha usa os mesmos dados." |
 
-Comando do backup (passo 10):
+Comando do backup (passo 11):
 
 ```powershell
 pg_dump -h localhost -p 5433 -U postgres -n sinisa -f "$env:TEMP\backup_sinisa.sql" residuos_sinisa
 dir "$env:TEMP\backup_sinisa.sql"
 ```
+
+| 12 | 1 min | Navegador: `http://localhost:8501` (dashboard já aberto antes) | "Este é o resultado para o usuário: lê o banco (uma cópia em SQLite). Mapa, ranking por estado e, na aba Método, as definições que vêm da tabela `indicador`." |
+
+Se o tempo apertar, corte o passo 10 (tablespaces) e encurte o 12.
 
 **Como usar o script `demo_postgres.sql`:** ele para entre os blocos esperando **Enter**. Fale, aperte Enter e avance. Se preferir rodar bloco a bloco, abra o arquivo e copie as consultas.
 
@@ -84,6 +61,7 @@ dir "$env:TEMP\backup_sinisa.sql"
 | Views | `vw_municipio_indicadores`, `vw_resumo_uf`, `vw_resumo_regiao` |
 | Consultas avançadas | Função de janela (`rank() OVER`), `percentile_cont` (mediana), `FILTER` |
 | Usuários e privilégios | Papel `leitor_sinisa` com `GRANT SELECT` |
+| Armazenamento físico e tablespaces | **Não criamos tablespace próprio**: tudo no `pg_default`. O bloco 9 mostra isso, o arquivo de cada tabela e o tamanho do banco. Ao falar, diga "só explicamos", nunca "aplicamos". |
 | Backup e restauração | `pg_dump` e `scripts/postgres_portatil.ps1 restaurar` |
 | Documentação do banco | `COMMENT ON` nas tabelas e `docs/banco_de_dados.md` |
 | Qualidade e validação dos dados | `sql/postgres/04_validacao.sql` e comparação com o SQLite |
@@ -100,7 +78,6 @@ O professor disse que dá para apresentar sem o banco rodando, e tudo isso funci
 Diga com naturalidade: "O servidor local não subiu nesta máquina a tempo; o banco, os scripts e o dump de restauração estão no repositório, e vou mostrar os scripts e o resultado." É a verdade e não gera problema.
 
 ## Se der problema na hora
-- **Acentos estranhos no PowerShell:** `chcp 65001` e `$env:PGCLIENTENCODING = "UTF8"` de novo.
-- **`psql` não encontrado:** repita a linha do `$env:Path`.
-- **Conexão recusada:** o servidor está desligado; rode o `iniciar`.
+- **Letras quebradas ou `psql` não encontrado:** rode de novo o passo 8 do guia na mesma janela.
+- **Conexão recusada:** o servidor está desligado; rode o passo 8 do guia (ele liga sozinho).
 - **Quer recomeçar o banco:** rode o `restaurar` (leva uns 2 segundos).
