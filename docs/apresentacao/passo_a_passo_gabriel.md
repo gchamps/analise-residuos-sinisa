@@ -129,7 +129,7 @@ psql -h localhost -p 5433 -U postgres -d residuos_sinisa -f docs/apresentacao/de
 3. Cole o **passo 8**. Ele **liga o servidor sozinho** se estiver desligado (acontece depois de reiniciar o notebook). Espere o **TUDO PRONTO**.
 4. Deixe a janela aberta. Para aumentar a letra: **Ctrl + roda do mouse**.
 5. Cole `.\docs\apresentacao\abrir_dashboard.ps1` (abre em segundos) e **espere a tela carregar**. Deixe essa aba aberta.
-6. Abra também, em outra aba: https://github.com/gchamps/analise-residuos-sinisa
+6. Durante a apresentação, abra cada coisa com `.\docs\apresentacao\abrir.ps1 N` (sem número, mostra a lista). Teste agora: `.\docs\apresentacao\abrir.ps1 1` deve abrir o repositório no navegador.
 
 ---
 

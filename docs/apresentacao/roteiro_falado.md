@@ -1,7 +1,7 @@
 # Roteiro falado (para ler na apresentação)
 
 Disciplina: **Administração de Banco de Dados**. Duração: cerca de 15 minutos falando, mais as pausas da demonstração.
-Linhas entre colchetes, como **[DEMO 4]**, indicam o passo do `roteiro_pratico.md`. Não leia os colchetes em voz alta.
+Linhas entre colchetes, como **[DEMO 4]**, indicam o passo do `roteiro_pratico.md`; quando aparece **abrir N**, digite `.\docs\apresentacao\abrir.ps1 N`. Não leia os colchetes em voz alta.
 Dica: fale devagar, com frases curtas, e olhe para o professor entre uma frase e outra.
 
 ---
@@ -16,7 +16,7 @@ O objetivo é transformar uma planilha grande e bagunçada em um **banco organiz
 
 Vou mostrar o caminho completo: de onde o dado veio, como foi tratado, como foi guardado e como ele é usado. E vou ligar cada passo ao que vimos em aula."
 
-**[DEMO 1: abrir o repositório no GitHub]**
+**[DEMO 1: abrir 1]**
 
 "Tudo está no GitHub: os dados brutos, os scripts, os arquivos SQL e a documentação."
 
@@ -24,13 +24,13 @@ Vou mostrar o caminho completo: de onde o dado veio, como foi tratado, como foi 
 
 ## 2. Extração dos dados (cerca de 2 minutos)
 
-**[DEMO 2: abrir `docs/banco_de_dados.md` e o diagrama do pipeline]**
+**[DEMO 2: abrir 2]**
 
 "Este é o fluxo do nosso banco. Ele segue a ideia de **ELT**: primeiro **extrair e carregar** o dado bruto, e só depois **transformar dentro do banco**.
 
 O primeiro passo é a **extração**."
 
-**[DEMO 3: abrir a planilha do SINISA]**
+**[DEMO 3: abrir 3]**
 
 "A fonte é uma planilha em Excel do Ministério das Cidades. Ela tem um problema: o **cabeçalho é dividido em duas linhas**. O código do indicador fica numa linha e a unidade em outra. E os municípios que não responderam vêm com campos vazios.
 
@@ -70,7 +70,7 @@ Também criamos **índices**, por exemplo, por indicador, para acelerar as consu
 
 O tratamento é feito por um script SQL, `02_transformacao.sql`, **dentro do banco**."
 
-**[DEMO 6: mostrar os comentários do topo do arquivo]**
+**[DEMO 6: abrir 6, mostrar os comentários do topo]**
 
 "As regras são: tirar espaços e a parte decimal do código IBGE; transformar 'Sim' e 'Não' em verdadeiro e falso; guardar só valores numéricos; e **marcar**, sem apagar, valores suspeitos, como porcentagem acima de 100.
 
@@ -128,7 +128,7 @@ Em um banco grande, a ideia seria **separar por disco**: as tabelas maiores em u
 
 ## 7. Dashboard (cerca de 1 minuto)
 
-**[DEMO 12: navegador em localhost:8501, já aberto]**
+**[DEMO 12: abrir 12]**
 
 "Para terminar a parte prática, o resultado que chega ao usuário: este é o **dashboard** que lê esses dados. Foi feito em **Python, com Streamlit**, e consome uma **cópia do banco em SQLite**, porque o serviço de hospedagem não alcança um PostgreSQL local.
 

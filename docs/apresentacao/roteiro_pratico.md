@@ -17,21 +17,31 @@ Disciplina: **Administração de Banco de Dados**. Tempo: 10 a 15 minutos. O pro
 Siga o arquivo **`passo_a_passo_gabriel.md`** (nesta mesma pasta). Ele leva o notebook do zero até o banco restaurado e termina com a conferência **TUDO PRONTO**. Faça isso **antes**, não na hora.
 
 Deixe abertos, antes de começar: (1) o PowerShell já preparado (passo 8 do guia), (2) o navegador em `https://github.com/gchamps/analise-residuos-sinisa`, (3) o Excel com `resultados\Analise_Estatistica_Residuos.xlsx` (opcional).
+## Comandos numerados: `abrir N`
+
+Para abrir cada coisa **sem procurar nada**, use o comando `abrir`. Onde o roteiro disser **`abrir N`**, digite no PowerShell, na raiz do projeto:
+
+```powershell
+.\docs\apresentacao\abrir.ps1 N
+```
+
+Sem número, ele mostra a lista de tudo que sabe abrir. Os números são os mesmos passos da tabela abaixo. Os itens do GitHub abrem no navegador; as planilhas abrem no Excel; o 12 só abre se o dashboard já estiver no ar.
+
 ## Sequência da demonstração (16 minutos)
 
 | # | Tempo | O que abrir ou rodar | O que apontar (uma frase) |
 |---|---|---|---|
-| 1 | 1 min | Navegador: repositório no GitHub, pastas `dados_originais`, `scripts`, `sql`, `dados_tratados`, `docs` | "Tudo está no GitHub: dados brutos, scripts, SQL e documentação." |
-| 2 | 2 min | Navegador: `docs/banco_de_dados.md`, o **diagrama do pipeline** (Mermaid, aparece desenhado) | "Este é o fluxo: planilha, staging, modelo final, views e validação." |
-| 3 | 1 min | Abra `dados_originais\SINISA_RESIDUOS_Indicadores_2024.xlsx` (só olhar o cabeçalho) | "A fonte é uma planilha com cabeçalho em duas linhas; por isso precisou de tratamento." |
-| 4 | 3 min | PowerShell: `psql -h localhost -p 5433 -U postgres -d residuos_sinisa -f docs/apresentacao/demo_postgres.sql` — blocos **1** e **2** | "Dois *schemas*: `staging` (bruto) e `sinisa` (modelo). Três tabelas em esquema estrela. Aqui estão tipos, chaves, `CHECK` e índices." |
+| 1 | 1 min | **`abrir 1`**: repositório no GitHub, pastas `dados_originais`, `scripts`, `sql`, `dados_tratados`, `docs` | "Tudo está no GitHub: dados brutos, scripts, SQL e documentação." |
+| 2 | 2 min | **`abrir 2`**: `docs/banco_de_dados.md`, o **diagrama do pipeline** (Mermaid, aparece desenhado) | "Este é o fluxo: planilha, staging, modelo final, views e validação." |
+| 3 | 1 min | **`abrir 3`**: planilha `dados_originais\SINISA_RESIDUOS_Indicadores_2024.xlsx` (só olhar o cabeçalho) | "A fonte é uma planilha com cabeçalho em duas linhas; por isso precisou de tratamento." |
+| 4 | 3 min | (se quiser mostrar o arquivo do esquema: **`abrir 4`**) PowerShell: `psql -h localhost -p 5433 -U postgres -d residuos_sinisa -f docs/apresentacao/demo_postgres.sql` — blocos **1** e **2** | "Dois *schemas*: `staging` (bruto) e `sinisa` (modelo). Três tabelas em esquema estrela. Aqui estão tipos, chaves, `CHECK` e índices." |
 | 5 | 2 min | Mesmo script, blocos **3** e **4** | "A planilha entra toda como texto no staging. O SQL limpa e carrega. 5.570 linhas viram 29.124 (4.854 respondentes × 6 indicadores)." Depois: a validação deu tudo zero. |
-| 6 | 1 min | Navegador: `sql/postgres/02_transformacao.sql` (mostrar só os comentários do topo) | "As regras de limpeza estão aqui, escritas em SQL, dentro do banco." |
+| 6 | 1 min | **`abrir 6`**: `sql/postgres/02_transformacao.sql` (mostrar só os comentários do topo) | "As regras de limpeza estão aqui, escritas em SQL, dentro do banco." |
 | 7 | 1 min | Mesmo script, bloco **5** | "O banco recusa dado inválido: valor negativo, município que não existe, resultado repetido." |
-| 8 | 2 min | Mesmo script, blocos **6** e **7** | "A view junta as tabelas e as estatísticas por UF saem do banco. O plano de execução usa o índice." |
+| 8 | 2 min | Mesmo script, blocos **6** e **7** (se quiser mostrar as views: **`abrir 8`**; as 11 consultas: **`abrir 13`**) | "A view junta as tabelas e as estatísticas por UF saem do banco. O plano de execução usa o índice." |
 | 9 | 1 min | Mesmo script, bloco **8** | "O usuário `leitor_sinisa` só consulta; tentar apagar é negado." |
 | 10 | 1 min | Mesmo script, bloco **9** | "Os dados são arquivos numa pasta, em páginas de 8 KB. Tablespace liga tabelas e índices a um local do disco. Não criamos um próprio: está tudo no padrão." |
-| 11 | 1 min | Backup (comando abaixo) e, se sobrar tempo, a planilha Excel (abas `Descritiva`, `Ranking_UF`) | "O banco se reconstrói a partir do dump, e a planilha usa os mesmos dados." |
+| 11 | 1 min | Backup (comando abaixo) e, se sobrar tempo, **`abrir 11`** (planilha Excel) (abas `Descritiva`, `Ranking_UF`) | "O banco se reconstrói a partir do dump, e a planilha usa os mesmos dados." |
 
 Comando do backup (passo 11):
 
@@ -40,7 +50,7 @@ pg_dump -h localhost -p 5433 -U postgres -n sinisa -f "$env:TEMP\backup_sinisa.s
 dir "$env:TEMP\backup_sinisa.sql"
 ```
 
-| 12 | 1 min | Navegador: `http://localhost:8501` (dashboard já aberto antes) | "Este é o resultado para o usuário: lê o banco (uma cópia em SQLite). Mapa, ranking por estado e, na aba Método, as definições que vêm da tabela `indicador`." |
+| 12 | 1 min | **`abrir 12`** (dashboard, que já deve estar no ar) | "Este é o resultado para o usuário: lê o banco (uma cópia em SQLite). Mapa, ranking por estado e, na aba Método, as definições que vêm da tabela `indicador`." |
 
 Se o tempo apertar, corte o passo 10 (tablespaces) e encurte o 12.
 
