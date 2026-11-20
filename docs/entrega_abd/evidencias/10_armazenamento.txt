@@ -1,0 +1,47 @@
+\pset pager off
+\db
+    Lista dos espaços de tabelas
+    Nome    |   Dono   | Localização 
+------------+----------+-------------
+ pg_default | postgres | 
+ pg_global  | postgres | 
+(2 linhas)
+
+SELECT c.relname AS objeto,
+       CASE c.relkind WHEN 'r' THEN 'tabela' ELSE 'indice' END AS tipo,
+       coalesce(t.spcname, 'pg_default') AS tablespace
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace
+WHERE n.nspname = 'sinisa' AND c.relkind IN ('r', 'i')
+ORDER BY c.relkind DESC, c.relname;
+         objeto          |  tipo  | tablespace 
+-------------------------+--------+------------
+ indicador               | tabela | pg_default
+ municipio               | tabela | pg_default
+ resultado_indicador     | tabela | pg_default
+ idx_municipio_uf        | indice | pg_default
+ idx_resultado_indicador | indice | pg_default
+ idx_resultado_municipio | indice | pg_default
+ pk_indicador            | indice | pg_default
+ pk_municipio            | indice | pg_default
+ pk_resultado            | indice | pg_default
+ uq_resultado            | indice | pg_default
+(10 linhas)
+
+SELECT pg_relation_filepath('sinisa.resultado_indicador') AS arquivo_da_tabela_fato,
+       current_setting('block_size')                     AS bytes_por_pagina;
+ arquivo_da_tabela_fato | bytes_por_pagina 
+------------------------+------------------
+ base/16799/16824       | 8192
+(1 linha)
+
+SELECT pg_size_pretty(pg_database_size('residuos_sinisa'))             AS banco_inteiro,
+       pg_size_pretty(pg_table_size('sinisa.resultado_indicador'))     AS tabela_fato,
+       pg_size_pretty(pg_indexes_size('sinisa.resultado_indicador'))   AS indices_da_fato,
+       pg_size_pretty(pg_total_relation_size('staging.stg_planilha'))  AS staging;
+ banco_inteiro | tabela_fato | indices_da_fato | staging 
+---------------+-------------+-----------------+---------
+ 14 MB         | 1984 kB     | 2376 kB         | 632 kB
+(1 linha)
+

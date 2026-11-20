@@ -1,0 +1,23 @@
+\pset pager off
+\pset null '(nulo)'
+SELECT cod_ibge, nom_mun, respondeu, irs0001, irs3002
+FROM staging.stg_planilha
+WHERE respondeu <> 'Sim'
+LIMIT 3;
+ cod_ibge |      nom_mun       | respondeu | irs0001 | irs3002 
+----------+--------------------+-----------+---------+---------
+ 1100809  | Candeias do Jamari | Não       | (nulo)  | (nulo)
+ 1101104  | Itapuã do Oeste    | Não       | (nulo)  | (nulo)
+ 1101609  | Theobroma          | Não       | (nulo)  | (nulo)
+(3 linhas)
+
+SELECT (SELECT count(*) FROM staging.stg_planilha)                 AS linhas_staging,
+       (SELECT count(*) FROM sinisa.municipio)                     AS municipios,
+       (SELECT count(*) FROM sinisa.municipio WHERE respondeu)     AS respondentes,
+       (SELECT count(*) FROM sinisa.resultado_indicador)           AS linhas_fato,
+       (SELECT count(*) FROM sinisa.municipio WHERE respondeu) * 6 AS respondentes_x_6;
+ linhas_staging | municipios | respondentes | linhas_fato | respondentes_x_6 
+----------------+------------+--------------+-------------+------------------
+           5570 |       5570 |         4854 |       29124 |            29124
+(1 linha)
+

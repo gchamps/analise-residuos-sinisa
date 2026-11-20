@@ -1,0 +1,27 @@
+\pset pager off
+\dn staging|sinisa
+ Lista de esquemas
+  Nome   |   Dono   
+---------+----------
+ sinisa  | postgres
+ staging | postgres
+(2 linhas)
+
+\dt sinisa.*
+                  List of tables
+ Esquema |        Nome         |  Tipo  |   Dono   
+---------+---------------------+--------+----------
+ sinisa  | indicador           | tabela | postgres
+ sinisa  | municipio           | tabela | postgres
+ sinisa  | resultado_indicador | tabela | postgres
+(3 linhas)
+
+\dv sinisa.*
+                     List of views
+ Esquema |           Nome           | Tipo  |   Dono   
+---------+--------------------------+-------+----------
+ sinisa  | vw_municipio_indicadores | visão | postgres
+ sinisa  | vw_resumo_regiao         | visão | postgres
+ sinisa  | vw_resumo_uf             | visão | postgres
+(3 linhas)
+

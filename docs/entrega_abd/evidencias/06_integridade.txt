@@ -1,0 +1,22 @@
+\pset pager off
+BEGIN;
+INSERT INTO sinisa.resultado_indicador (cod_ibge, codigo_indicador, ano_referencia, valor) VALUES ('3550308', 'IRS3002', 2024, -5);
+ERROR:  new row for relation "resultado_indicador" violates check constraint "ck_resultado_valor"
+DETALHE:  Failing row contains (29125, 3550308, IRS3002, 2024, -5, null).
+ROLLBACK;
+BEGIN;
+INSERT INTO sinisa.resultado_indicador (cod_ibge, codigo_indicador, ano_referencia, valor) VALUES ('9999999', 'IRS3002', 2024, 10);
+ERROR:  insert or update on table "resultado_indicador" violates foreign key constraint "fk_resultado_mun"
+DETALHE:  Key (cod_ibge)=(9999999) is not present in table "municipio".
+ROLLBACK;
+BEGIN;
+INSERT INTO sinisa.resultado_indicador (cod_ibge, codigo_indicador, ano_referencia, valor) VALUES ('3550308', 'IRS3002', 2024, 10);
+ERROR:  duplicate key value violates unique constraint "uq_resultado"
+DETALHE:  Key (cod_ibge, codigo_indicador, ano_referencia)=(3550308, IRS3002, 2024) already exists.
+ROLLBACK;
+SELECT count(*) AS linhas_fato_depois FROM sinisa.resultado_indicador;
+ linhas_fato_depois 
+--------------------
+              29124
+(1 linha)
+

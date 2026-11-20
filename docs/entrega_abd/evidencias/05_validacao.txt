@@ -1,0 +1,9 @@
+\i sql/postgres/04_validacao.sql
+                                    verificacao                                     | problemas 
+------------------------------------------------------------------------------------+-----------
+ linhas do staging sem município correspondente (código IBGE inválido ou duplicado) |         0
+ resultados de municípios que não responderam                                       |         0
+ municípios respondentes sem nenhum resultado                                       |         0
+ indicadores com número de municípios diferente do de respondentes                  |         0
+(4 linhas)
+

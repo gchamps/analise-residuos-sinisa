@@ -1,0 +1,31 @@
+\pset pager off
+\du leitor_sinisa
+     Lista de funções de banco de dados (roles)
+ Nome da função de banco de dados (role) | Atributos 
+-----------------------------------------+-----------
+ leitor_sinisa                           | 
+
+\dp sinisa.municipio
+                                     Privilégios de acesso
+ Esquema |   Nome    |  Tipo  |   Privilégios de acesso    | Privilégios de coluna | Políticas 
+---------+-----------+--------+----------------------------+-----------------------+-----------
+ sinisa  | municipio | tabela | postgres=arwdDxtm/postgres+|                       | 
+         |           |        | leitor_sinisa=r/postgres   |                       | 
+(1 linha)
+
+\c residuos_sinisa leitor_sinisa
+SELECT current_user, count(*) AS leitura_permitida FROM sinisa.municipio;
+ current_user  | leitura_permitida 
+---------------+-------------------
+ leitor_sinisa |              5570
+(1 linha)
+
+DELETE FROM sinisa.municipio;
+ERROR:  permission denied for table municipio
+\c residuos_sinisa postgres
+SELECT count(*) AS municipios_depois FROM sinisa.municipio;
+ municipios_depois 
+-------------------
+              5570
+(1 linha)
+

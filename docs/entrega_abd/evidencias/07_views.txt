@@ -1,0 +1,28 @@
+\pset pager off
+SELECT nome_municipio, uf, populacao_total,
+       round(irs0001_cobertura_coleta::numeric, 1)      AS cobertura_coleta,
+       round(irs3002_disposicao_inadequada::numeric, 1) AS disposicao_inadequada
+FROM sinisa.vw_municipio_indicadores
+WHERE uf = 'SP' AND nome_municipio IN ('São Paulo', 'São Bernardo do Campo', 'Santo André')
+ORDER BY populacao_total DESC;
+    nome_municipio     | uf | populacao_total | cobertura_coleta | disposicao_inadequada 
+-----------------------+----+-----------------+------------------+-----------------------
+ São Paulo             | SP |        11895578 |            100.0 |                   0.0
+ São Bernardo do Campo | SP |          840499 |            100.0 |                   0.0
+ Santo André           | SP |          778711 |            100.0 |                   0.0
+(3 linhas)
+
+SELECT uf, media_simples, media_ponderada, mediana,
+       rank() OVER (ORDER BY media_simples DESC) AS posicao
+FROM sinisa.vw_resumo_uf
+ORDER BY posicao
+LIMIT 5;
+ uf | media_simples | media_ponderada | mediana | posicao 
+----+---------------+-----------------+---------+---------
+ RR |        100.00 |          100.00 |  100.00 |       1
+ AM |         94.76 |           42.93 |  100.00 |       2
+ PA |         93.92 |           70.56 |  100.00 |       3
+ MA |         90.62 |           64.98 |  100.00 |       4
+ AC |         88.89 |           47.99 |  100.00 |       5
+(5 linhas)
+
