@@ -26,6 +26,8 @@ N["irs3002_faixas"] = [list(r) for r in q("""select case when valor=0 then '0%' 
 N["media_simples_ponderada"] = [[a, float(b), float(c)] for a,b,c in q("""select r.codigo_indicador, round(avg(r.valor)::numeric,2),
    round((sum(r.valor*m.populacao_total)/sum(m.populacao_total))::numeric,2)
    from sinisa.resultado_indicador r join sinisa.municipio m on m.cod_ibge=r.cod_ibge group by 1 order by 1""")]
+N["zeros_por_indicador"] = {c: n for c, n in q("select codigo_indicador, count(*) filter (where valor = 0) from sinisa.resultado_indicador group by 1 order by 1")}
+N["irs3002_em_100"] = one("select count(*) from sinisa.resultado_indicador where codigo_indicador='IRS3002' and valor >= 100")
 N["regiao"] = [[a,b,float(c),float(d)] for a,b,c,d in q("select regiao, municipios_respondentes, disposicao_inadequada_media, coleta_seletiva_media from sinisa.vw_resumo_regiao order by 3 desc")]
 N["uf_sp"] = [float(x) for x in q("select media_simples, media_ponderada from sinisa.vw_resumo_uf where uf='SP'")[0]]
 N["uf_rank_top5"] = [[a,float(b),float(c)] for a,b,c in q("select uf, media_simples, media_ponderada from sinisa.vw_resumo_uf order by media_simples desc limit 5")]

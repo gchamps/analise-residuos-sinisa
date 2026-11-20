@@ -41,7 +41,7 @@ def b64(caminho):
 # ------------------------------------------------------------------ numeração (fixa, conferida no fim)
 ORDEM_FIG = ["fluxo", "er", "estrutura", "fato", "carga", "validacao", "integridade", "views", "explain",
              "seguranca", "armazenamento", "backup", "pan", "est", "mun"]
-ORDEM_TAB = ["media", "regiao", "faixa"]
+ORDEM_TAB = ["media", "regiao", "faixa", "ods"]
 ORDEM_QUA = ["ind", "restr", "cmp"]
 F = {k: i for i, k in enumerate(ORDEM_FIG, 1)}
 T = {k: i for i, k in enumerate(ORDEM_TAB, 1)}
@@ -221,8 +221,8 @@ TITULO = "Do dado bruto ao indicador confiável: banco de dados relacional para 
 
 resumo = (
     f"Este artigo documenta a camada de banco de dados de um projeto que analisa a gestão de resíduos sólidos urbanos "
-    f"nos municípios brasileiros com dados do Sistema Nacional de Informações em Saneamento Básico (SINISA 2025, ano de "
-    f"referência 2024). A planilha oficial de indicadores, com {br(n_mun)} linhas e cabeçalho distribuído em várias linhas, "
+    f"nos municípios brasileiros, em apoio ao acompanhamento das metas 11.6 (ODS 11) e 12.5 (ODS 12), com dados do Sistema "
+    f"Nacional de Informações em Saneamento Básico (SINISA 2025, ano de referência 2024). A planilha oficial de indicadores, com {br(n_mun)} linhas e cabeçalho distribuído em várias linhas, "
     f"foi lida com Python, gravada sem tratamento em uma área de staging no PostgreSQL {N['versao_pg']} e transformada em SQL "
     f"em um esquema estrela com duas dimensões (município e indicador) e uma tabela fato de {br(n_fato)} registros. O modelo "
     f"usa chaves primárias e estrangeiras, restrições UNIQUE e CHECK, índices de apoio e três views analíticas. Um papel "
@@ -239,6 +239,12 @@ intro = f"""
 <p>Medir como os municípios coletam, recuperam e destinam seus resíduos é condição para acompanhar a Política Nacional de
 Resíduos Sólidos, que exige a disposição final ambientalmente adequada dos rejeitos (BRASIL, 2010). Os dados abertos do
 SINISA, do Ministério das Cidades, são divulgados em planilhas eletrônicas (BRASIL, 2025a).</p>
+<p>O tema também integra a Agenda 2030. O ODS 11 (cidades e comunidades sustentáveis) tem a meta 11.6, de reduzir o impacto
+ambiental negativo per capita das cidades, com atenção especial à gestão de resíduos municipais; o ODS 12 (consumo e produção
+responsáveis) tem a meta 12.5, de reduzir substancialmente a geração de resíduos por meio da prevenção, redução, reciclagem e
+reuso (NAÇÕES UNIDAS, 2015). Acompanhar essas metas depende de dados confiáveis sobre coleta, recuperação e destinação dos
+resíduos: é esse o papel do banco de dados descrito neste artigo, que organiza e valida os indicadores do SINISA ligados às
+duas metas.</p>
 <p>A planilha de indicadores traz uma linha por município ({br(n_mun)} linhas), com código IBGE, nome, UF, macrorregião,
 população, indicação de resposta ao módulo de resíduos e uma coluna por indicador. Usada diretamente, ela não impede
 um código repetido, um percentual negativo ou um município inexistente; não registra de onde veio cada linha, não separa
@@ -252,13 +258,14 @@ entregue em artigo próprio, na disciplina de Estatística.</p>
 
 objetivos = """
 <p><b>Objetivo geral:</b> projetar, implantar e validar um banco de dados relacional no PostgreSQL com os indicadores de
-resíduos sólidos urbanos do SINISA 2025, de modo que as análises e o painel do projeto partam de dados íntegros,
-rastreáveis e conferidos.</p>
+resíduos sólidos urbanos do SINISA 2025, de modo que as análises e o painel do projeto, e o acompanhamento das metas 11.6 e 12.5 dos ODS 11 e 12 que eles
+suportam, partam de dados íntegros, rastreáveis e conferidos.</p>
 <p><b>Objetivos específicos:</b> (a) extrair a planilha e preservá-la sem alterações em uma área de staging; (b) modelar um
 esquema estrela com restrições de integridade e índices; (c) transformar e carregar os dados em SQL, sinalizando
 valores suspeitos sem apagá-los; (d) validar a carga por verificações de integridade e por comparação com a planilha
 original e com uma segunda base; (e) aplicar práticas de administração: controle de acesso por papel, backup e
-restauração, inspeção do armazenamento físico; (f) documentar evidências (comandos e telas) e limitações.</p>
+restauração, inspeção do armazenamento físico; (f) relacionar os indicadores armazenados às metas 11.6 e 12.5 dos ODS 11 e 12; (g) documentar evidências (comandos e
+telas) e limitações.</p>
 """
 
 fund = """
@@ -275,18 +282,22 @@ quase sem alteração, e transformados dentro do próprio banco. Isso permite au
 voltar à origem. Completam a administração do banco o controle de acesso por papéis (GRANT), os índices e a leitura do
 plano de execução das consultas, a cópia de segurança (aqui, lógica, com pg_dump) e o conhecimento de como o SGBD
 guarda os dados em disco (ELMASRI; NAVATHE, 2018).</p>
+<p>Os Objetivos de Desenvolvimento Sustentável (ODS) reúnem 17 objetivos e 169 metas da Agenda 2030, acompanhados por
+indicadores como o 11.6.1, a proporção de resíduos sólidos urbanos coletados e com destino final adequado (IPEA, [20--]).
+Indicadores só servem ao acompanhamento de uma meta se os dados que os calculam forem corretos e rastreáveis, o que liga o
+tema da administração de banco de dados ao dos ODS.</p>
 """
 
 quadro_ind = quadro(
     "ind", "Indicadores do SINISA carregados no banco",
-    ["Código", "Indicador", "Unidade", "Grupo"],
-    [["IRS0001", "Cobertura da população total com coleta de resíduos sólidos domiciliares", "Percentual", "Cobertura"],
-     ["IRS0005", "Cobertura da população total com coleta seletiva de resíduos sólidos domiciliares", "Percentual", "Cobertura"],
-     ["IRS1004", "Massa média per capita de resíduos sólidos urbanos coletados", "Kg/hab.dia", "Operacional"],
-     ["IRS3001", "Desempenho da coleta seletiva", "Percentual", "Qualidade"],
-     ["IRS3002", "Disposição final inadequada de resíduos sólidos urbanos", "Percentual", "Qualidade"],
-     ["IRS3010", "Recuperação de resíduos recicláveis secos e orgânicos em relação à quantidade total coletada", "Percentual", "Qualidade"]],
-    "tabela sinisa.indicador do banco; nomes e unidades conforme o glossário do SINISA (BRASIL, 2025b).",
+    ["Código", "Indicador", "Unidade", "Grupo", "Meta ODS"],
+    [["IRS0001", "Cobertura da população total com coleta de resíduos sólidos domiciliares", "Percentual", "Cobertura", "11.6"],
+     ["IRS0005", "Cobertura da população total com coleta seletiva de resíduos sólidos domiciliares", "Percentual", "Cobertura", "12.5"],
+     ["IRS1004", "Massa média per capita de resíduos sólidos urbanos coletados", "Kg/hab.dia", "Operacional", "11.6 e 12.5"],
+     ["IRS3001", "Desempenho da coleta seletiva", "Percentual", "Qualidade", "12.5"],
+     ["IRS3002", "Disposição final inadequada de resíduos sólidos urbanos", "Percentual", "Qualidade", "11.6 (indicador 11.6.1)"],
+     ["IRS3010", "Recuperação de resíduos recicláveis secos e orgânicos em relação à quantidade total coletada", "Percentual", "Qualidade", "12.5"]],
+    "colunas código a grupo: tabela sinisa.indicador do banco, com nomes e unidades do glossário do SINISA (BRASIL, 2025b); coluna Meta ODS: associação adotada no artigo de Estatística do grupo, com base em IPEA (2018) e IPEA ([20--]).",
 )
 
 met_dados = f"""
@@ -447,8 +458,34 @@ coincidem com os do artigo de Estatística do grupo, o que confirma que as duas 
 {tab_faixa}
 """
 
+z = N["zeros_por_indicador"]
+META = {"IRS0001": "11.6", "IRS0005": "12.5", "IRS1004": "11.6 e 12.5", "IRS3001": "12.5", "IRS3002": "11.6", "IRS3010": "12.5"}
+tab_ods = tabela(
+    "ods", "Indicadores por meta dos ODS 11 e 12: médias e municípios com valor 0",
+    ["Meta ODS", "Indicador", "Média simples", "Média ponderada", "Municípios com 0 (n e %)"],
+    [[META[c], c, br(msp[c][0], 2), br(msp[c][1], 2), f"{br(z[c])} ({br(100 * z[c] / n_resp, 1)}%)"] for c in sorted(msp, key=lambda c: (META[c], c))],
+    "consultas SQL sobre o banco, executadas pelos autores; meta ODS conforme o Quadro 1.",
+    nota=f"valores em %, exceto IRS1004 (kg/hab.dia); n = {br(n_resp)} municípios por indicador. No IRS3002, {br(N['irs3002_em_100'])} municípios "
+         f"({br(100 * N['irs3002_em_100'] / n_resp, 1)}%) declaram 100% da massa a destinos inadequados.",
+    alinhar="llrrr",
+)
+r_ods = f"""
+<h3>5.5 Leitura à luz dos ODS 11 e 12</h3>
+<p>Os seis indicadores do banco se associam às metas 11.6 e 12.5 (Quadro {Q['ind']} e Tabela {T['ods']}). Pela meta 11.6, o
+IRS3002 (disposição final inadequada) corresponde ao indicador 11.6.1; pela meta 12.5, a coleta seletiva (IRS0005), o
+desempenho da coleta seletiva (IRS3001) e a recuperação de recicláveis (IRS3010) medem etapas da reciclagem. Nos dados
+carregados, {br(N['irs3002_em_100'])} municípios ({br(100 * N['irs3002_em_100'] / n_resp, 1)}%) declaram enviar toda a massa
+coletada a destinos inadequados (meta 11.6), {br(z['IRS0005'])} ({br(100 * z['IRS0005'] / n_resp, 1)}%) declaram cobertura
+nula de coleta seletiva e {br(z['IRS3010'])} ({br(100 * z['IRS3010'] / n_resp, 1)}%) não registram recuperação (meta 12.5).</p>
+<p><b>O que este artigo não faz.</b> Ele não avalia o cumprimento das metas: os valores descrevem o que os municípios
+declararam em um único ano, e um zero pode significar ausência do serviço ou da informação. O papel do banco é garantir que
+esses números sejam íntegros, rastreáveis e conferidos (seções 5.2, 5.3 e 5.10). A distância em relação às metas, as
+desigualdades regionais e a regressão entre coleta seletiva e recuperação são tratadas no artigo de Estatística do grupo.</p>
+{tab_ods}
+"""
+
 r_perf = f"""
-<h3>5.5 Plano de execução e índice</h3>
+<h3>5.6 Plano de execução e índice</h3>
 <p>Para a consulta da média do IRS3002, o planejador escolheu o índice <i>idx_resultado_indicador</i> (Bitmap Index Scan),
 lendo {paginas_heap} páginas da tabela (Figura {F['explain']}). Forçando o planejador a ignorar índices, a mesma consulta passa
 a usar varredura sequencial. Em uma execução de cada, o tempo foi de {br(t_idx, 1)} ms com o índice e {br(t_seq, 1)} ms sem ele.
@@ -460,7 +497,7 @@ compense mais com volumes maiores é o comportamento esperado, mas é hipótese,
 """
 
 r_seg = f"""
-<h3>5.6 Controle de acesso</h3>
+<h3>5.7 Controle de acesso</h3>
 <p>A Figura {F['seguranca']} mostra o papel <i>leitor_sinisa</i>, seus privilégios na tabela <i>municipio</i> (“r”, isto é,
 somente leitura, contra “arwdDxtm” do dono) e o teste prático: como leitor, a consulta é permitida e o DELETE é recusado
 com “permission denied”; de volta ao dono, a tabela segue intacta.</p>
@@ -468,7 +505,7 @@ com “permission denied”; de volta ao dono, a tabela segue intacta.</p>
 """
 
 r_arm = f"""
-<h3>5.7 Armazenamento físico</h3>
+<h3>5.8 Armazenamento físico</h3>
 <p>O PostgreSQL já traz dois tablespaces, <i>pg_default</i> e <i>pg_global</i>; nenhum foi criado para o projeto, e todas as
 tabelas e índices estão em <i>pg_default</i> (Figura {F['armazenamento']}). A tabela fato é um arquivo dentro da pasta de dados,
 gravado em páginas de 8 kB. O banco inteiro ocupa {t_banco}; a tabela fato, {t_fato}, e seus índices, {t_ind}; o staging,
@@ -478,7 +515,7 @@ estudado e explicado, mas não aplicado.</p>
 """
 
 r_bkp = f"""
-<h3>5.8 Cópia de segurança e restauração</h3>
+<h3>5.9 Cópia de segurança e restauração</h3>
 <p>O backup lógico do banco ({bytes_dump} bytes) foi restaurado em um banco novo, <i>residuos_teste</i>, e as contagens, a
 soma da população e a média do IRS3002 foram comparadas com as do original: iguais ({br(n_mun)} municípios, {br(n_fato)}
 resultados, {br(N['pop_total'])} habitantes, {br(n_stg)} linhas de staging e média {br(msp['IRS3002'][0], 2)}) (Figura
@@ -506,7 +543,7 @@ quadro_cmp = quadro(
     alinhar="lrr",
 )
 r_cmp = f"""
-<h3>5.9 Conferência com a planilha original e com a base do painel</h3>
+<h3>5.10 Conferência com a planilha original e com a base do painel</h3>
 <p>A primeira conferência é a mais forte: a planilha original foi lida de novo, diretamente, com uma biblioteca diferente
 (openpyxl) e sem usar nenhum código do ETL do projeto, e cada valor foi comparado com o do PostgreSQL (Quadro {Q['cmp']}). Os
 {br(cpl['linhas_planilha'])} municípios, os {br(cpl['respondentes_planilha'])} respondentes e os {br(n_fato)} pares
@@ -520,7 +557,7 @@ a leitura é a comparação direta com a planilha.</p>
 """
 
 r_ui = f"""
-<h3>5.10 Interface: painel interativo</h3>
+<h3>5.11 Interface: painel interativo</h3>
 <p>O painel, desenvolvido em Streamlit, consome os dados tratados (SQLite) e tem quatro abas: Panorama, Estados, Municípios
 e Método e limitações (esta última declara ao usuário a fonte, a cobertura, o significado dos zeros e os limites do
 estudo). A Figura {F['pan']} mostra os indicadores principais e o recorte por região; a Figura {F['est']}, o ranking das UFs;
@@ -545,13 +582,14 @@ scripts do PostgreSQL refletem o modelo anterior a elas.</li>
 <li><b>Alcance das conferências.</b> A comparação direta com a planilha cobre os seis indicadores, a população, o nome, a UF e
 a região; as demais colunas da planilha não são carregadas e, portanto, não foram conferidas. Conferir que o banco reproduz a
 planilha não verifica se o dado declarado pelo município está correto.</li>
+<li><b>Metas dos ODS.</b> A associação entre indicadores e metas é interpretativa e vem do artigo de Estatística do grupo; o banco organiza e valida os dados, mas não mede o cumprimento das metas 11.6 e 12.5.</li>
 <li><b>Segurança de laboratório.</b> O servidor aceita conexões só do próprio computador e usa autenticação “trust”, e o
 papel de leitura não tem senha. Isso serve a um banco local de estudo e não a produção, que exigiria autenticação por senha,
 conexão cifrada e regras de acesso por endereço.</li>
 <li><b>Cópia de segurança.</b> Foi testada a restauração de um backup lógico na mesma máquina e versão do PostgreSQL; não foram
 testados backup físico, arquivamento contínuo (WAL) nem restauração em outro computador.</li>
 <li><b>Desempenho.</b> O volume ({br(n_fato)} linhas, {t_banco}) é pequeno demais para medir o efeito de índices e de
-tablespaces (seções 5.5 e 5.7).</li>
+tablespaces (seções 5.6 e 5.8).</li>
 <li><b>Dados.</b> São autodeclarados pelos municípios; {br(n_nresp)} municípios ({br(100 - pct_resp, 1)}%) não responderam e ficam
 sem indicadores; o estudo cobre um único ano; em alguns indicadores, o valor zero pode significar ausência do serviço ou da
 informação.</li>
@@ -563,8 +601,9 @@ conclusao = f"""
 SINISA 2025, com staging, esquema estrela, {n_check} restrições CHECK, {rst['resultado_indicador']['f']} chaves estrangeiras,
 uma restrição UNIQUE, três views, um papel somente leitura e um ciclo testado de backup e restauração. A carga de
 {br(n_fato)} resultados de {br(n_resp)} municípios foi validada por verificações de integridade e por comparação, registro a
-registro, com a planilha original e com a base do painel, sem diferenças. O trabalho entrega, além do banco, os scripts, as
-evidências de execução e um painel que mostra os dados ao usuário final.</p>
+registro, com a planilha original e com a base do painel, sem diferenças. Com isso, o acompanhamento das metas 11.6 e 12.5 dos ODS 11 e 12
+passa a partir de uma base conferida. O trabalho entrega, além do banco, os scripts, as evidências de execução e um painel
+que mostra os dados ao usuário final.</p>
 <p>Como próximos passos, sugerem-se: levar a tabela <i>destinacao_municipio</i> à camada PostgreSQL e regerar o dump; publicar um
 PostgreSQL acessível para que o painel o consulte; adotar autenticação por senha e conexão cifrada; e carregar edições futuras do
 SINISA para medir a evolução, o que permitiria testar o efeito de índices e de particionamento com volumes maiores.</p>
@@ -575,8 +614,11 @@ refs = [
     "BRASIL. Ministério das Cidades. <b>Sistema Nacional de Informações em Saneamento Básico (SINISA)</b>: indicadores de resíduos sólidos urbanos, ano de referência 2024. Brasília, DF: MCID, 2025a. Planilha eletrônica SINISA_RESIDUOS_Indicadores_2024.xlsx. Disponível em: https://www.gov.br/cidades/pt-br/acesso-a-informacao/acoes-e-programas/saneamento/sinisa/resultados-sinisa. Acesso em: 9 nov. 2026.",
     "BRASIL. Ministério das Cidades. <b>SINISA</b>: glossário de indicadores de resíduos sólidos urbanos. Brasília, DF: MCID, [2025b]. Disponível em: https://www.gov.br/cidades/pt-br/acesso-a-informacao/acoes-e-programas/saneamento/sinisa/resultados-sinisa/Glossario_Indicadores_SINISA_RESIDUOS.pdf. Acesso em: 9 nov. 2026.",
     "ELMASRI, R.; NAVATHE, S. B. <b>Sistemas de banco de dados</b>. 7. ed. São Paulo: Pearson, 2018.",
+    "INSTITUTO DE PESQUISA ECONÔMICA APLICADA (IPEA). <b>Agenda 2030</b>: ODS – metas nacionais dos Objetivos de Desenvolvimento Sustentável. Brasília, DF: Ipea, 2018. Disponível em: https://repositorio.ipea.gov.br/bitstream/11058/8636/1/Agenda%202030%20ODS%20Metas%20Nac%20dos%20Obj%20de%20Desenv%20Susten%202018.pdf. Acesso em: 9 nov. 2026.",
+    "INSTITUTO DE PESQUISA ECONÔMICA APLICADA (IPEA). <b>ODS 11</b>: cidades e comunidades sustentáveis. Brasília, DF: Ipea, [20--]. Disponível em: https://ipea.gov.br/ods/ods11.html. Acesso em: 9 nov. 2026.",
     "KIMBALL, R.; ROSS, M. <b>The data warehouse toolkit</b>: the definitive guide to dimensional modeling. 3. ed. Indianapolis: John Wiley &amp; Sons, 2013.",
     "McKINNEY, W. Data structures for statistical computing in Python. In: PYTHON IN SCIENCE CONFERENCE, 9., 2010, Austin. <b>Proceedings</b> [...]. Austin: SciPy, 2010. p. 56-61.",
+    "NAÇÕES UNIDAS. <b>Transformando nosso mundo</b>: a Agenda 2030 para o Desenvolvimento Sustentável. Nova York: ONU, 2015.",
 ]
 refs_html = "".join(f"<p class='ref'>{r}</p>" for r in refs)
 
@@ -663,7 +705,7 @@ h2 { font-size: 11pt; margin: 18pt 0 4pt; break-after: avoid }
 h3 { font-size: 11pt; font-weight: normal; margin: 12pt 0 3pt; break-after: avoid }
 h3.ap { font-weight: bold }
 p { margin: 0 0 7pt }
-p.esq, p.ref { text-align: left } p.ref { margin-bottom: 7pt } p.esq { break-after: avoid }
+p.esq, p.ref { text-align: left; overflow-wrap: anywhere } p.ref { margin-bottom: 7pt } p.esq { break-after: avoid }
 ul { margin: 0 0 8pt; padding-left: 18pt } li { margin-bottom: 3pt }
 ul.autores { text-align: left }
 .resumo p { margin-bottom: 6pt }
@@ -691,13 +733,13 @@ doc = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>{
 <div class="rot">Lista de participantes (autores)</div>
 <ul class="autores">{lista_part}</ul>
 <div class="rot">Resumo</div><div class="resumo"><p>{resumo}</p>
-<p><b>Palavras-chave:</b> Administração de banco de dados; PostgreSQL; Esquema estrela; ETL; SINISA; Resíduos sólidos urbanos.</p></div>
+<p><b>Palavras-chave:</b> Administração de banco de dados; PostgreSQL; Esquema estrela; ETL; SINISA; ODS 11; ODS 12; Resíduos sólidos urbanos.</p></div>
 <h2>1. Introdução</h2>{intro}
 <h2>2. Objetivos</h2>{objetivos}
 <h2>3. Fundamentação teórica</h2>{fund}
 <h2>4. Metodologia</h2>{met_dados}{met_arq}{met_modelo}{met_etl}{met_views}
 <h2>5. Resultados e evidências</h2>{r_intro}
-{r_estr}{r_carga}{r_integ}{r_cons}{r_perf}{r_seg}{r_arm}{r_bkp}{r_cmp}{r_ui}
+{r_estr}{r_carga}{r_integ}{r_cons}{r_ods}{r_perf}{r_seg}{r_arm}{r_bkp}{r_cmp}{r_ui}
 <h2>6. Discussão e limitações</h2>{discussao}
 <h2>7. Conclusão</h2>{conclusao}
 <h2>Referências</h2>{refs_html}
