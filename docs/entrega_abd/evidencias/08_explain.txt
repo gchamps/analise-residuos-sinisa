@@ -1,0 +1,32 @@
+\pset pager off
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, BUFFERS OFF)
+SELECT avg(valor) FROM sinisa.resultado_indicador WHERE codigo_indicador = 'IRS3002';
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Aggregate (actual rows=1.00 loops=1)
+   ->  Bitmap Heap Scan on resultado_indicador (actual rows=4854.00 loops=1)
+         Recheck Cond: ((codigo_indicador)::text = 'IRS3002'::text)
+         Heap Blocks: exact=244
+         ->  Bitmap Index Scan on idx_resultado_indicador (actual rows=4864.00 loops=1)
+               Index Cond: ((codigo_indicador)::text = 'IRS3002'::text)
+               Index Searches: 1
+ Planning Time: 14.032 ms
+ Execution Time: 2.686 ms
+(9 linhas)
+
+SET enable_indexscan = off;
+SET enable_bitmapscan = off;
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, BUFFERS OFF)
+SELECT avg(valor) FROM sinisa.resultado_indicador WHERE codigo_indicador = 'IRS3002';
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Aggregate (actual rows=1.00 loops=1)
+   ->  Seq Scan on resultado_indicador (actual rows=4854.00 loops=1)
+         Filter: ((codigo_indicador)::text = 'IRS3002'::text)
+         Rows Removed by Filter: 24270
+ Planning Time: 0.104 ms
+ Execution Time: 3.389 ms
+(6 linhas)
+
+RESET enable_indexscan;
+RESET enable_bitmapscan;

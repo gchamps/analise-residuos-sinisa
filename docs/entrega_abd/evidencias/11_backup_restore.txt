@@ -1,0 +1,26 @@
+$ pg_dump -h localhost -p 5433 -U postgres -d residuos_sinisa --no-owner -f backup_residuos_sinisa.sql
+$ ls -l backup_residuos_sinisa.sql
+1.765.143 bytes
+$ psql -d postgres -c "CREATE DATABASE residuos_teste ..."
+NOTICE:  database "residuos_teste" does not exist, skipping
+$ psql -d residuos_teste -v ON_ERROR_STOP=1 -q -f backup_residuos_sinisa.sql
+ set_config 
+------------
+ 
+(1 linha)
+
+ setval 
+--------
+  29124
+(1 linha)
+$ psql -d residuos_sinisa -c "SELECT contagens, soma e media ..."
+ municipios | fato  | populacao | staging | media_irs3002 
+------------+-------+-----------+---------+---------------
+       5570 | 29124 | 212583750 |    5570 |         33.87
+(1 linha)
+$ psql -d residuos_teste -c "SELECT contagens, soma e media ..."
+ municipios | fato  | populacao | staging | media_irs3002 
+------------+-------+-----------+---------+---------------
+       5570 | 29124 | 212583750 |    5570 |         33.87
+(1 linha)
+$ psql -d postgres -c "DROP DATABASE residuos_teste;"   -- limpa o banco de teste

@@ -1,0 +1,24 @@
+\pset pager off
+\d sinisa.resultado_indicador
+                                 Tabela "sinisa.resultado_indicador"
+      Coluna      |         Tipo          | Ordenação | Pode ser nulo |            Padrão            
+------------------+-----------------------+-----------+---------------+------------------------------
+ id_resultado     | bigint                |           | not null      | generated always as identity
+ cod_ibge         | character(7)          |           | not null      | 
+ codigo_indicador | character varying(10) |           | not null      | 
+ ano_referencia   | smallint              |           | not null      | 
+ valor            | double precision      |           | not null      | 
+ flag_qualidade   | character varying(30) |           |               | 
+Índices:
+    "pk_resultado" PRIMARY KEY, btree (id_resultado)
+    "idx_resultado_indicador" btree (codigo_indicador)
+    "idx_resultado_municipio" btree (cod_ibge)
+    "uq_resultado" UNIQUE CONSTRAINT, btree (cod_ibge, codigo_indicador, ano_referencia)
+Restrições de verificação:
+    "ck_resultado_ano" CHECK (ano_referencia >= 2000 AND ano_referencia <= 2100)
+    "ck_resultado_flag" CHECK (flag_qualidade IS NULL OR (flag_qualidade::text = ANY (ARRAY['PERCENTUAL_ACIMA_100'::character varying::text, 'MASSA_PER_CAPITA_ALTA'::character varying::text])))
+    "ck_resultado_valor" CHECK (valor >= 0::double precision)
+Restrições de chave estrangeira:
+    "fk_resultado_ind" FOREIGN KEY (codigo_indicador) REFERENCES sinisa.indicador(codigo)
+    "fk_resultado_mun" FOREIGN KEY (cod_ibge) REFERENCES sinisa.municipio(cod_ibge)
+
