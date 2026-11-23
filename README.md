@@ -12,7 +12,8 @@ Projeto de extensão do 4º semestre (FATEC São Bernardo do Campo). Organiza, a
 | Código-fonte da aplicação web (Streamlit) | `scripts/app.py` |
 | ETL (Excel → SQLite), com conferência do IRS3002 contra as rotas de coleta | `scripts/etl_sqlite.py` |
 | Planilha estatística com análises | `resultados/Analise_Estatistica_Residuos.xlsx` |
-| Relatório diagnóstico de qualidade | `analise-residuos-sinisa.docx` |
+| Relatório diagnóstico de qualidade (versão final, com checklist, fotos, ODS 12 e indicadores) | `analise-residuos-sinisa.docx` |
+| Ficha de Registro de Atividade de Extensão | `docs/extensao/Ficha_Registro_Atividade_Extensao.docx` |
 | Testes automatizados e CI | `tests/`, `.github/workflows/ci.yml` |
 | MPV publicado | _link da aplicação: preencher após o deploy (veja "Publicação")_ |
 
